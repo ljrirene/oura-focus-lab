@@ -1,0 +1,50 @@
+{
+  "timezone": "UTC",
+  "schedule": {
+    "startDate": "2026-01-01",
+    "phases": [
+      {
+        "label": "Starter phase",
+        "windDown": "22:30",
+        "bed": "23:00",
+        "lightsOut": "23:15",
+        "naturalWakeWindow": "07:00-07:15",
+        "wake": "07:15",
+        "days": 3
+      },
+      {
+        "label": "Stable phase",
+        "windDown": "22:15",
+        "bed": "22:45",
+        "lightsOut": "23:00",
+        "naturalWakeWindow": "06:45-07:00",
+        "wake": "07:00",
+        "days": null
+      }
+    ],
+    "workday": [
+      ["07:00", "Morning routine", "Hydrate, get daylight, and eat breakfast."],
+      ["09:00-11:00", "Focus block", "Choose one demanding task."],
+      ["12:00-14:00", "Lunch and reset", "Eat, walk, and take a short rest if needed."],
+      ["14:00-16:00", "Second focus block", "Complete one defined deliverable."],
+      ["18:00", "Movement", "Follow your selected training plan."],
+      ["22:15", "Wind down", "Follow the sleep plan shown on Today."]
+    ],
+    "weekPlan": [
+      ["Mon", "Strength", "Full body"],
+      ["Tue", "Aerobic", "Comfortable steady effort"],
+      ["Wed", "Recovery", "Walk and mobility"],
+      ["Thu", "Strength", "Full body"],
+      ["Fri", "Rest", "Optional easy walk"],
+      ["Sat", "Skill", "A sport you enjoy"],
+      ["Sun", "Recovery", "Walk and mobility"]
+    ]
+  },
+  "targets": {
+    "sleepHours": 8.0,
+    "readiness": 80,
+    "sleepScore": 80,
+    "hrv": null
+  },
+  "dailyItems": []
+}

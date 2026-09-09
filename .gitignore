@@ -1,0 +1,15 @@
+.env
+.oura/
+config/user.json
+data/raw/*
+!data/raw/.gitkeep
+data/csv/*.csv
+data/cognitive_log.csv
+data/supplement_log.csv
+data/daily_item_log.json
+data/exports/*
+!data/exports/.gitkeep
+reports/*.md
+__pycache__/
+*.pyc
+.DS_Store

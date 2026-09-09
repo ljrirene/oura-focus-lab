@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f6f2">
+    <title>Oura Focus Lab</title>
+    <link rel="stylesheet" href="/styles.css?v=6">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="product-name">Oura Focus Lab</p>
+          <p class="product-subtitle">睡眠决策与自动复盘</p>
+        </div>
+        <div class="sync-state">
+          <span class="sync-dot" aria-hidden="true"></span>
+          <span id="data-through">读取本地数据中</span>
+        </div>
+      </header>
+
+      <nav class="tabbar" aria-label="主要视图">
+        <button class="tab is-active" type="button" data-tab="today">今天</button>
+        <button class="tab" type="button" data-tab="review">复盘</button>
+        <button class="tab" type="button" data-tab="schedule">日程</button>
+        <button class="tab" type="button" data-tab="data">数据</button>
+      </nav>
+
+      <main>
+        <section class="view is-active" id="today-view" data-view="today">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow" id="today-date">今天</p>
+              <h1>今晚睡眠方案</h1>
+            </div>
+            <span class="status-pill neutral" id="status-pill">读取中</span>
+          </div>
+
+          <section class="sleep-command" aria-labelledby="sleep-command-title">
+            <div class="sleep-command-copy">
+              <p class="section-kicker" id="sleep-phase">当前阶段</p>
+              <h2 id="sleep-command-title"><span id="sleep-lights">-- 关灯</span><span id="sleep-wake">-- 起床</span></h2>
+              <p id="sleep-instruction">读取今晚安排</p>
+            </div>
+            <div class="sleep-clock" aria-label="今晚的睡眠时间线">
+              <div><strong id="clock-wind-down">--</strong><span>降光</span></div>
+              <div><strong id="clock-bed">--</strong><span>上床</span></div>
+              <div><strong id="clock-lights">--</strong><span>关灯</span></div>
+              <div><strong id="clock-wake">--</strong><span>起床</span></div>
+            </div>
+          </section>
+
+          <section class="today-guidance" id="today-guidance">
+            <div>
+              <p class="section-kicker">今日负荷</p>
+              <h2 id="status-title">正在判断今天的负荷</h2>
+            </div>
+            <div class="guidance-grid">
+              <div><span>工作</span><p id="guidance-work">读取中</p></div>
+              <div><span>运动</span><p id="guidance-exercise">读取中</p></div>
+              <div><span>晚上</span><p id="guidance-evening">读取中</p></div>
+            </div>
+          </section>
+
+          <section aria-labelledby="latest-title">
+            <div class="section-heading">
+              <div><p class="section-kicker">最新一晚</p><h2 id="latest-title">昨晚数据</h2></div>
+              <p id="latest-date">--</p>
+            </div>
+            <div class="metric-grid">
+              <article class="metric-card"><span>实际睡眠</span><strong id="metric-sleep">--</strong><small id="target-sleep">读取目标</small></article>
+              <article class="metric-card"><span>Readiness</span><strong id="metric-readiness">--</strong><small id="target-readiness">读取目标</small></article>
+              <article class="metric-card"><span>睡眠分</span><strong id="metric-sleep-score">--</strong><small id="target-sleep-score">读取目标</small></article>
+              <article class="metric-card"><span>HRV</span><strong id="metric-hrv">--</strong><small id="target-hrv">读取目标</small></article>
+            </div>
+          </section>
+
+          <section class="supplement-panel" aria-labelledby="daily-item-title">
+            <div class="section-heading">
+              <div><p class="section-kicker">一键确认</p><h2 id="daily-item-title">今日服用</h2></div>
+              <span id="daily-item-count">0 / 0</span>
+            </div>
+            <div class="supplement-schedule" id="daily-item-options"></div>
+            <p class="supplement-rule" id="daily-item-empty">尚未添加项目。请在“数据”页添加。</p>
+          </section>
+
+        </section>
+
+        <section class="view" id="review-view" data-view="review">
+          <div class="page-heading">
+            <div><p class="eyebrow">14 晚自动实验</p><h1>日程是否奏效</h1></div>
+            <span class="progress-count" id="review-count">0 / 14</span>
+          </div>
+          <section class="review-verdict">
+            <p class="section-kicker" id="review-day">准备开始</p>
+            <h2 id="review-verdict">先收集数据</h2>
+            <div class="progress-track" aria-label="自动收集睡眠夜进度"><span id="progress-fill"></span></div>
+          </section>
+          <section aria-labelledby="trend-title">
+            <div class="section-heading">
+              <div><p class="section-kicker">最近 28 晚</p><h2 id="trend-title">恢复趋势</h2></div>
+              <div class="chart-legend"><span class="readiness-key">Readiness</span><span class="sleep-key">睡眠分</span></div>
+            </div>
+            <div class="chart-wrap"><svg id="score-chart" role="img" aria-label="最近 28 晚 Readiness 和睡眠分趋势"></svg></div>
+          </section>
+          <section aria-labelledby="comparison-title">
+            <div class="section-heading"><div><p class="section-kicker">最近 14 天 / 前 14 天</p><h2 id="comparison-title">作息变化</h2></div></div>
+            <div class="comparison-grid" id="comparison-grid"></div>
+          </section>
+          <section aria-labelledby="experiment-title">
+            <div class="section-heading"><div><p class="section-kicker">执行后 / 基线</p><h2 id="experiment-title">自动恢复指标</h2></div></div>
+            <div class="comparison-grid" id="experiment-grid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="schedule-view" data-view="schedule">
+          <div class="page-heading"><div><p class="eyebrow">按时间执行</p><h1>你的具体日程</h1></div></div>
+          <section class="cycle-explainer" id="cycle-explainer">
+            <div><p class="section-kicker" id="cycle-kicker">个人睡眠周期</p><h2 id="cycle-title">尚未配置周期估算</h2><p id="cycle-copy">运行睡眠周期分析后，可把汇总值写入本地配置。</p></div>
+            <div class="range-visual" aria-label="个人睡眠周期常见范围">
+              <span class="range-line"></span><span class="range-start" id="cycle-start">--</span><strong id="cycle-typical">--</strong><span class="range-end" id="cycle-end">--</span>
+            </div>
+          </section>
+          <section aria-labelledby="transition-title">
+            <div class="section-heading"><div><p class="section-kicker">本地配置</p><h2 id="transition-title">入睡过渡</h2></div></div>
+            <div class="transition-grid" id="transition-grid"></div>
+          </section>
+          <section aria-labelledby="workday-title">
+            <div class="section-heading"><div><p class="section-kicker">本地配置</p><h2 id="workday-title">工作日</h2></div></div>
+            <div class="timeline" id="workday-timeline"></div>
+          </section>
+          <section aria-labelledby="training-title">
+            <div class="section-heading"><div><p class="section-kicker">TRAINING</p><h2 id="training-title">本周运动</h2></div></div>
+            <div class="week-grid" id="week-grid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="data-view" data-view="data">
+          <div class="page-heading"><div><p class="eyebrow">本机保存</p><h1>数据与提醒</h1></div></div>
+          <section class="data-actions">
+            <div><p class="section-kicker">本地数据状态</p><h2 id="data-status">读取中</h2><p id="sync-time">--</p></div>
+            <div class="button-row">
+              <button class="secondary-button" id="refresh-button" type="button">重新读取数据</button>
+              <a class="primary-button link-button" href="/api/reminders.ics" download>下载系统日历提醒</a>
+              <button class="secondary-button" id="notification-button" type="button">开启页面通知</button>
+            </div>
+          </section>
+          <section class="data-notes" aria-labelledby="data-notes-title">
+            <div><p class="section-kicker">自动规则</p><h2 id="data-notes-title">7 晚初判，14 晚定案</h2></div>
+            <ol>
+              <li><strong>每日：</strong>按最新睡眠自动分配工作、训练和晚间负荷。</li>
+              <li><strong>复盘：</strong>对比执行前 14 晚的睡眠、规律性、起床偏差、Readiness、睡眠分和 HRV。</li>
+              <li><strong>边界：</strong>判断恢复条件，不冒充专注力测量。</li>
+            </ol>
+          </section>
+          <section class="item-settings" aria-labelledby="item-settings-title">
+            <div><p class="section-kicker">仅保存在本机</p><h2 id="item-settings-title">添加服用项目</h2></div>
+            <form id="item-form" class="item-form">
+              <label>名称<input id="item-name" name="name" maxlength="60" required></label>
+              <label>类型<select id="item-category" name="category"><option value="medication">药品</option><option value="supplement">补剂</option><option value="other">其他</option></select></label>
+              <label>时间<input id="item-time" name="time" type="time"></label>
+              <label class="wide-label">备注<input id="item-note" name="note" maxlength="120" placeholder="例如：随餐"></label>
+              <button class="primary-button" type="submit">添加</button>
+            </form>
+            <div class="configured-items" id="configured-items"></div>
+          </section>
+          <section class="command-panel" aria-labelledby="sync-title">
+            <div><p class="section-kicker">更新 Oura</p><h2 id="sync-title">同步后点“重新读取”</h2></div>
+            <code>python3 scripts/oura_sync.py sync --start-date 2025-01-01</code>
+            <p>同步完成后重新读取本地 CSV。</p>
+          </section>
+        </section>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js?v=6" defer></script>
+  </body>
+</html>
