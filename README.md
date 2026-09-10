@@ -14,6 +14,7 @@ The browser dashboard runs on your computer. OAuth tokens, health CSV files, per
 - Paginated historical sync with rate-limit handling
 - Raw JSON snapshots and incrementally merged CSV tables
 - Automatic rolling sync of recent data with visible status and retry
+- Optional AI-generated daily schedule using compact Oura summaries
 - Local dashboard for Readiness, sleep, HRV, schedules, and trends
 - User-defined medication, supplement, or routine check-offs stored only on the local machine
 - Calendar reminder export
@@ -83,6 +84,8 @@ Open `http://127.0.0.1:8787`.
 ## Configuration
 
 `config/profile.example.json` is a neutral template. Copy it to the ignored `config/user.json`, then set your timezone, targets, sleep phases, workday, training plan, and optional daily items. Items can also be added or removed from the dashboard's Data page. See [Configuration](docs/CONFIGURATION.md).
+
+To enable the dynamic daily plan, create an OpenAI API key and add `OPENAI_API_KEY` to `.env`. The feature uses the Responses API with structured output and falls back to local rules when the key or API is unavailable.
 
 ## Commands
 

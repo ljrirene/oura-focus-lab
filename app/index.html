@@ -10,7 +10,7 @@
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icon.svg">
-    <link rel="stylesheet" href="/styles.css?v=7">
+    <link rel="stylesheet" href="/styles.css?v=8">
   </head>
   <body>
     <div class="app-shell">
@@ -60,12 +60,21 @@
             <div>
               <p class="section-kicker">今日负荷</p>
               <h2 id="status-title">正在判断今天的负荷</h2>
+              <p class="status-reason" id="status-reason"></p>
             </div>
             <div class="guidance-grid">
               <div><span>工作</span><p id="guidance-work">读取中</p></div>
               <div><span>运动</span><p id="guidance-exercise">读取中</p></div>
               <div><span>晚上</span><p id="guidance-evening">读取中</p></div>
             </div>
+          </section>
+
+          <section class="daily-plan" aria-labelledby="daily-plan-title">
+            <div class="section-heading">
+              <div><p class="section-kicker" id="plan-source">保底计划</p><h2 id="daily-plan-title">今天怎么安排</h2></div>
+              <span class="plan-generated" id="plan-generated">--</span>
+            </div>
+            <div class="timeline compact-timeline" id="daily-plan-timeline"></div>
           </section>
 
           <section aria-labelledby="latest-title">
@@ -149,10 +158,12 @@
               <h2 id="sync-status">读取同步状态</h2>
               <p id="sync-detail">--</p>
               <p id="sync-time">--</p>
+              <p id="ai-status">AI：读取状态</p>
             </div>
             <div class="button-row">
               <button class="primary-button" id="sync-button" type="button">立即同步 Oura</button>
               <button class="secondary-button" id="refresh-button" type="button">重新载入页面数据</button>
+              <button class="secondary-button" id="ai-plan-button" type="button">重新生成今日计划</button>
               <button class="secondary-button" id="install-button" type="button" hidden>安装到手机</button>
               <a class="primary-button link-button" href="/api/reminders.ics" download>下载系统日历提醒</a>
               <button class="secondary-button" id="notification-button" type="button">开启页面通知</button>
@@ -181,6 +192,6 @@
       </main>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/app.js?v=7" defer></script>
+    <script src="/app.js?v=9" defer></script>
   </body>
 </html>

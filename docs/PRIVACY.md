@@ -35,6 +35,10 @@ Inspect every staged file with `git diff --cached`. Never add ignored files with
 - Avoid publishing exact sleep and wake timestamps without considering routine privacy.
 - Stop temporary tunnels as soon as mobile testing is complete.
 
+## Optional AI Data Transfer
+
+The AI plan is disabled unless `OPENAI_API_KEY` is configured. When enabled, the server sends the latest-night metrics, recent aggregate trends, schedule constraints, and unnamed medication time slots to the OpenAI Responses API. It does not send raw Oura rows, OAuth credentials, medication names, doses, profile names, or contact details. Requests set `store: false`; review OpenAI's current API data controls before enabling the feature.
+
 ## Medical Boundary
 
 The software summarizes wearable estimates and personal observations. It must not be used to diagnose conditions, adjust medication, or replace professional medical care. User-entered daily items are reminders only, not product recommendations or interaction guidance.

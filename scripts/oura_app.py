@@ -7,9 +7,11 @@ import argparse
 import base64
 import csv
 import hmac
+import hashlib
 import json
 import math
 import os
+import re
 import statistics
 import subprocess
 import sys
@@ -22,7 +24,9 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -33,13 +37,68 @@ PROFILE_EXAMPLE_PATH = PROJECT_ROOT / "config" / "profile.example.json"
 DAILY_ITEM_LOG_PATH = PROJECT_ROOT / "data" / "daily_item_log.json"
 SYNC_STATE_PATH = PROJECT_ROOT / "data" / "sync_state.json"
 SYNC_PROCESS_LOCK_PATH = PROJECT_ROOT / "data" / ".sync.lock"
+AI_PLAN_PATH = PROJECT_ROOT / "data" / "ai_daily_plan.json"
 PROFILE_LOCK = threading.Lock()
 DAILY_ITEM_LOCK = threading.Lock()
 SYNC_LOCK = threading.Lock()
 SYNC_STATE_LOCK = threading.Lock()
+AI_PLAN_LOCK = threading.Lock()
 APP_USERNAME = ""
 APP_PASSWORD = ""
 DEFAULT_SYNC_ENDPOINTS = ["daily_sleep", "daily_readiness", "sleep", "heartrate", "daily_activity", "daily_stress", "workout"]
+AI_PLAN_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["status", "sleepPlan", "guidance", "timeline"],
+    "properties": {
+        "status": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["key", "label", "title", "reason"],
+            "properties": {
+                "key": {"type": "string", "enum": ["green", "amber", "red"]},
+                "label": {"type": "string"},
+                "title": {"type": "string"},
+                "reason": {"type": "string"},
+            },
+        },
+        "sleepPlan": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["windDown", "bed", "lightsOut", "wake", "instruction"],
+            "properties": {
+                "windDown": {"type": "string"},
+                "bed": {"type": "string"},
+                "lightsOut": {"type": "string"},
+                "wake": {"type": "string"},
+                "instruction": {"type": "string"},
+            },
+        },
+        "guidance": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["work", "exercise", "evening"],
+            "properties": {
+                "work": {"type": "string"},
+                "exercise": {"type": "string"},
+                "evening": {"type": "string"},
+            },
+        },
+        "timeline": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["time", "title", "detail"],
+                "properties": {
+                    "time": {"type": "string"},
+                    "title": {"type": "string"},
+                    "detail": {"type": "string"},
+                },
+            },
+        },
+    },
+}
 
 
 def load_env_file(path: Path) -> None:
@@ -211,6 +270,7 @@ def run_incremental_sync(trigger: str = "automatic") -> None:
         finished = datetime.now().astimezone().isoformat(timespec="seconds")
         if result.returncode == 0:
             update_sync_state(status="success", message="Oura 数据已更新", lastSuccess=finished)
+            request_ai_plan_generation()
             return
         output = f"{result.stdout}\n{result.stderr}".lower()
         needs_auth = "run auth again" in output or "no token file" in output
@@ -336,6 +396,221 @@ def save_daily_item(payload: dict[str, Any]) -> dict[str, Any]:
         log[day_text] = day_log
         write_json_atomic(DAILY_ITEM_LOG_PATH, log)
     return daily_item_state(day_text)
+
+
+def ai_plan_status() -> dict[str, Any]:
+    cached = read_json(AI_PLAN_PATH, {})
+    if not isinstance(cached, dict):
+        cached = {}
+    configured = bool(os.environ.get("OPENAI_API_KEY"))
+    if AI_PLAN_LOCK.locked():
+        status = "generating"
+        message = "AI 正在生成今日计划"
+    elif not configured:
+        status = "not_configured"
+        message = "添加 OPENAI_API_KEY 后启用每日动态计划"
+    elif cached.get("date") == date.today().isoformat() and cached.get("source") == "ai":
+        status = "ready"
+        message = "今日计划已由 AI 生成"
+    elif cached.get("status") == "error" and cached.get("date") == date.today().isoformat():
+        status = "error"
+        message = str(cached.get("message") or "AI 计划生成失败")
+    else:
+        status = "pending"
+        message = "等待生成今日计划"
+    return {
+        "status": status,
+        "message": message,
+        "configured": configured,
+        "model": os.environ.get("OPENAI_MODEL", "gpt-5-mini"),
+        "generatedAt": cached.get("generatedAt"),
+    }
+
+
+def response_output_text(payload: dict[str, Any]) -> str:
+    direct = payload.get("output_text")
+    if isinstance(direct, str) and direct.strip():
+        return direct
+    for item in payload.get("output", []):
+        if not isinstance(item, dict) or item.get("type") != "message":
+            continue
+        for content in item.get("content", []):
+            if isinstance(content, dict) and content.get("type") == "output_text" and content.get("text"):
+                return str(content["text"])
+    raise ValueError("AI response did not contain output text")
+
+
+def clock_distance(left: str, right: str) -> int:
+    difference = abs(clock_value(left) - clock_value(right))
+    return min(difference, 24 * 60 - difference)
+
+
+def valid_clock(value: Any) -> bool:
+    try:
+        parsed = datetime.strptime(str(value), "%H:%M")
+    except ValueError:
+        return False
+    return parsed.strftime("%H:%M") == str(value)
+
+
+def validate_ai_plan(plan: Any, base_sleep: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(plan, dict):
+        raise ValueError("AI plan is not an object")
+    status = plan.get("status")
+    sleep = plan.get("sleepPlan")
+    guidance = plan.get("guidance")
+    timeline = plan.get("timeline")
+    if not isinstance(status, dict) or status.get("key") not in {"green", "amber", "red"}:
+        raise ValueError("AI plan status is invalid")
+    if not isinstance(sleep, dict) or not isinstance(guidance, dict) or not isinstance(timeline, list):
+        raise ValueError("AI plan sections are invalid")
+    checked_sleep = dict(base_sleep)
+    for key in ("windDown", "bed", "lightsOut"):
+        candidate = str(sleep.get(key) or "")
+        baseline = str(base_sleep.get(key) or "")
+        if valid_clock(candidate) and valid_clock(baseline) and clock_distance(candidate, baseline) <= 60:
+            checked_sleep[key] = candidate
+    checked_sleep["wake"] = base_sleep.get("wake", "--")
+    checked_sleep["instruction"] = str(sleep.get("instruction") or base_sleep.get("instruction") or "")[:220]
+    checked_timeline = []
+    for item in timeline[:10]:
+        if not isinstance(item, dict):
+            continue
+        time_text = str(item.get("time") or "")[:30]
+        title = str(item.get("title") or "")[:60]
+        detail = str(item.get("detail") or "")[:180]
+        if time_text and title and detail:
+            checked_timeline.append({"time": time_text, "title": title, "detail": detail})
+    if len(checked_timeline) < 3:
+        raise ValueError("AI plan timeline is incomplete")
+    return {
+        "status": {
+            "key": status["key"],
+            "label": str(status.get("label") or "")[:40],
+            "title": str(status.get("title") or "")[:100],
+            "reason": str(status.get("reason") or "")[:220],
+        },
+        "sleepPlan": checked_sleep,
+        "guidance": {
+            "work": str(guidance.get("work") or "")[:220],
+            "exercise": str(guidance.get("exercise") or "")[:220],
+            "evening": str(guidance.get("evening") or "")[:220],
+        },
+        "timeline": checked_timeline,
+    }
+
+
+def ai_plan_context(dashboard: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
+    medication_names = [str(item.get("name")) for item in profile_items() if item.get("category") == "medication"]
+
+    def redact(value: Any) -> Any:
+        if isinstance(value, list):
+            return [redact(item) for item in value]
+        if isinstance(value, dict):
+            return {key: redact(item) for key, item in value.items()}
+        if isinstance(value, str):
+            result = value
+            for name in medication_names:
+                if name:
+                    result = re.sub(re.escape(name), "固定用药", result, flags=re.IGNORECASE)
+            return result
+        return value
+
+    fixed_slots = [
+        {"category": item.get("category"), "time": item.get("time") or "user-defined"}
+        for item in profile_items()
+        if item.get("category") == "medication"
+    ]
+    return {
+        "date": date.today().isoformat(),
+        "weekday": date.today().strftime("%A"),
+        "latestNight": dashboard["latest"],
+        "recent14": dashboard["current14"],
+        "previous14": dashboard["previous14"],
+        "ruleBasedRecovery": dashboard["status"],
+        "currentSleepPhase": dashboard["sleepPlan"],
+        "configuredWorkday": redact(profile.get("schedule", {}).get("workday", [])),
+        "weeklyTraining": redact(profile.get("schedule", {}).get("weekPlan", [])),
+        "fixedMedicationSlotsWithoutNames": fixed_slots,
+    }
+
+
+def generate_ai_plan() -> None:
+    if not AI_PLAN_LOCK.acquire(blocking=False):
+        return
+    try:
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            return
+        dashboard = dashboard_payload(include_ai=False)
+        if dashboard.get("error"):
+            return
+        profile = load_profile()
+        base_sleep = dashboard["sleepPlan"]
+        context = ai_plan_context(dashboard, profile)
+        request_payload = {
+            "model": os.environ.get("OPENAI_MODEL", "gpt-5-mini"),
+            "store": False,
+            "instructions": (
+                "You are a concise Chinese daily planning engine for a private sleep and cognition dashboard. "
+                "Build a specific plan for this date from the supplied wearable data and configured constraints. "
+                "Vary work intensity, exercise, breaks, learning, and bedtime when the data supports it. "
+                "Keep the configured wake time unchanged. Sleep times may move by at most 60 minutes. "
+                "Do not diagnose, recommend medication, change medication timing, dosage, or frequency, or name medicines. "
+                "Medication slots are fixed constraints managed outside your output. Use short, direct Chinese."
+            ),
+            "input": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "daily_plan",
+                    "strict": True,
+                    "schema": AI_PLAN_SCHEMA,
+                }
+            },
+        }
+        request = Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(request_payload).encode("utf-8"),
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(request, timeout=90) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+        plan = validate_ai_plan(json.loads(response_output_text(response_payload)), base_sleep)
+        fingerprint = hashlib.sha256(request_payload["input"].encode("utf-8")).hexdigest()[:16]
+        write_json_atomic(
+            AI_PLAN_PATH,
+            {
+                **plan,
+                "date": date.today().isoformat(),
+                "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "source": "ai",
+                "model": request_payload["model"],
+                "contextFingerprint": fingerprint,
+            },
+        )
+    except HTTPError as error:
+        write_json_atomic(AI_PLAN_PATH, {"date": date.today().isoformat(), "status": "error", "message": f"AI API 返回 {error.code}"})
+    except (URLError, OSError, ValueError, json.JSONDecodeError) as error:
+        write_json_atomic(AI_PLAN_PATH, {"date": date.today().isoformat(), "status": "error", "message": f"AI 计划失败：{str(error)[:100]}"})
+    finally:
+        AI_PLAN_LOCK.release()
+
+
+def request_ai_plan_generation(force: bool = False) -> dict[str, Any]:
+    cached = read_json(AI_PLAN_PATH, {})
+    if (
+        not force
+        and isinstance(cached, dict)
+        and cached.get("date") == date.today().isoformat()
+        and cached.get("source") == "ai"
+    ):
+        return ai_plan_status()
+    if not os.environ.get("OPENAI_API_KEY"):
+        return ai_plan_status()
+    threading.Thread(target=generate_ai_plan, daemon=True).start()
+    return ai_plan_status()
 
 
 def number(value: Any) -> float | None:
@@ -657,7 +932,17 @@ def automatic_review(sleep_rows: list[dict[str, Any]], profile: dict[str, Any]) 
     }
 
 
-def dashboard_payload() -> dict[str, Any]:
+def fallback_timeline(profile: dict[str, Any]) -> list[dict[str, str]]:
+    schedule = profile.get("schedule", {})
+    rows = schedule.get("workday", []) if isinstance(schedule, dict) else []
+    output = []
+    for row in rows:
+        if isinstance(row, list) and len(row) >= 3:
+            output.append({"time": str(row[0]), "title": str(row[1]), "detail": str(row[2])})
+    return output
+
+
+def dashboard_payload(include_ai: bool = True) -> dict[str, Any]:
     profile = load_profile()
     targets = profile.get("targets", {}) if isinstance(profile.get("targets"), dict) else {}
     sleep_rows = load_sleep_data()
@@ -673,7 +958,7 @@ def dashboard_payload() -> dict[str, Any]:
     trend = [row for row in sleep_rows if date.fromisoformat(row["date"]) >= trend_start]
     csv_files = list(CSV_DIR.glob("*.csv"))
     newest_mtime = max((path.stat().st_mtime for path in csv_files), default=0)
-    return {
+    payload = {
         "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
         "dataThrough": latest["date"],
         "lastLocalSync": datetime.fromtimestamp(newest_mtime).astimezone().isoformat(timespec="minutes") if newest_mtime else None,
@@ -697,6 +982,39 @@ def dashboard_payload() -> dict[str, Any]:
         "sleepPlan": tonight_sleep_plan(profile),
         "review": automatic_review(sleep_rows, profile),
     }
+    if not include_ai:
+        return payload
+    cached_plan = read_json(AI_PLAN_PATH, {})
+    valid_cached_plan = (
+        isinstance(cached_plan, dict)
+        and cached_plan.get("date") == date.today().isoformat()
+        and cached_plan.get("source") == "ai"
+    )
+    if valid_cached_plan:
+        guidance = cached_plan.get("guidance", {})
+        ai_status = cached_plan.get("status", {})
+        payload["status"] = {
+            **ai_status,
+            "work": guidance.get("work", payload["status"]["work"]),
+            "exercise": guidance.get("exercise", payload["status"]["exercise"]),
+            "evening": guidance.get("evening", payload["status"]["evening"]),
+        }
+        payload["sleepPlan"] = cached_plan.get("sleepPlan", payload["sleepPlan"])
+        payload["todayPlan"] = {
+            "source": "ai",
+            "model": cached_plan.get("model"),
+            "generatedAt": cached_plan.get("generatedAt"),
+            "timeline": cached_plan.get("timeline", []),
+        }
+    else:
+        payload["todayPlan"] = {
+            "source": "fallback",
+            "model": None,
+            "generatedAt": None,
+            "timeline": fallback_timeline(profile),
+        }
+    payload["ai"] = ai_plan_status()
+    return payload
 
 
 def calendar_ics() -> str:
@@ -753,7 +1071,7 @@ def calendar_ics() -> str:
             phase_offset += int(duration)
 
     for item in profile_items():
-        if not item.get("time"):
+        if not valid_clock(item.get("time")):
             continue
         add_event(
             f'daily-item-{item["id"]}',
@@ -840,6 +1158,9 @@ class OuraAppHandler(BaseHTTPRequestHandler):
         if path == "/api/sync-status":
             self.send_json(current_sync_state())
             return
+        if path == "/api/ai-plan":
+            self.send_json(ai_plan_status())
+            return
         if path == "/api/reminders.ics":
             self.send_bytes(
                 calendar_ics().encode("utf-8"),
@@ -870,6 +1191,9 @@ class OuraAppHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/sync":
             self.send_json(request_incremental_sync(), HTTPStatus.ACCEPTED)
+            return
+        if path == "/api/ai-plan":
+            self.send_json(request_ai_plan_generation(force=True), HTTPStatus.ACCEPTED)
             return
         if path not in {"/api/items", "/api/daily-item"}:
             self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)

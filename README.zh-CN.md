@@ -14,6 +14,7 @@
 - 分页拉取历史数据，处理速率限制
 - 保存原始 JSON，并增量合并 CSV
 - 后台滚动同步最近数据，并显示成功、进行中和重试状态
+- 可选的 AI 每日动态日程，只发送精简的 Oura 汇总
 - 本地查看 Readiness、睡眠、HRV、趋势和具体日程
 - 用户自行添加药品、补剂或日常项目，一键确认并仅保存在本机
 - 导出系统日历提醒
@@ -84,6 +85,8 @@ git check-ignore .env .oura/tokens.json data/csv/sleep.csv
 ## 个性化配置
 
 `config/profile.example.json` 是不含个人信息的模板。复制为被 Git 忽略的 `config/user.json`，再填写自己的时区、目标、睡眠阶段、工作日、运动计划和可选每日项目。药品、补剂或其他项目也可以直接在应用的“数据”页添加和删除。详见 [配置说明](docs/CONFIGURATION.md)。
+
+如需启用每日动态计划，在 OpenAI Platform 创建 API key，并把 `OPENAI_API_KEY` 写入 `.env`。API 不可用时应用自动回退到本地规则。
 
 ## 验证
 

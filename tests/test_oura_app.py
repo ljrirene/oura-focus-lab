@@ -117,5 +117,54 @@ class SyncTests(unittest.TestCase):
         self.assertTrue(oura_app.valid_basic_authorization("", "oura", ""))
 
 
+class AIPlanTests(unittest.TestCase):
+    def test_ai_plan_cannot_move_configured_wake_time(self):
+        base = {
+            "label": "Stable",
+            "windDown": "22:15",
+            "bed": "22:45",
+            "lightsOut": "23:00",
+            "wake": "07:00",
+            "instruction": "Base",
+            "phaseIndex": 1,
+        }
+        generated = {
+            "status": {"key": "amber", "label": "ADJUST", "title": "Reduce load", "reason": "Short sleep"},
+            "sleepPlan": {"windDown": "21:55", "bed": "22:30", "lightsOut": "22:45", "wake": "09:30", "instruction": "Earlier night"},
+            "guidance": {"work": "One focus block", "exercise": "Walk", "evening": "Stop early"},
+            "timeline": [
+                {"time": "09:00", "title": "Start", "detail": "Plan one task"},
+                {"time": "12:00", "title": "Lunch", "detail": "Eat and walk"},
+                {"time": "18:00", "title": "Movement", "detail": "Easy walk"},
+            ],
+        }
+        checked = oura_app.validate_ai_plan(generated, base)
+        self.assertEqual(checked["sleepPlan"]["wake"], "07:00")
+        self.assertEqual(checked["sleepPlan"]["lightsOut"], "22:45")
+
+    def test_response_output_text_finds_message_content(self):
+        payload = {"output": [{"type": "message", "content": [{"type": "output_text", "text": "{\"ok\":true}"}]}]}
+        self.assertEqual(oura_app.response_output_text(payload), '{"ok":true}')
+
+    def test_ai_context_excludes_medication_names(self):
+        dashboard = {
+            "latest": {"readiness": 75},
+            "current14": {},
+            "previous14": {},
+            "status": {"key": "amber"},
+            "sleepPlan": {"wake": "07:00"},
+        }
+        profile = sample_profile()
+        profile["schedule"]["workday"] = [["08:00", "Private medicine", "Take Private medicine"]]
+        private_items = [{"id": "med", "name": "Private medicine", "category": "medication", "time": "morning"}]
+        with mock.patch.object(oura_app, "profile_items", return_value=private_items):
+            context = oura_app.ai_plan_context(dashboard, profile)
+
+        serialized = str(context)
+        self.assertNotIn("Private medicine", serialized)
+        self.assertIn("固定用药", serialized)
+        self.assertIn("morning", serialized)
+
+
 if __name__ == "__main__":
     unittest.main()

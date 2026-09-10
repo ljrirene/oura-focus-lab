@@ -109,6 +109,7 @@ function renderStatus(data) {
   };
   $("#latest-title").textContent = reasonTitles[status.key] || "昨晚数据";
   $("#status-title").textContent = status.title;
+  $("#status-reason").textContent = status.reason || "根据最新睡眠与恢复指标调整。";
   $("#guidance-work").textContent = status.work;
   $("#guidance-exercise").textContent = status.exercise;
   $("#guidance-evening").textContent = status.evening;
@@ -125,6 +126,27 @@ function renderStatus(data) {
   $("#clock-bed").textContent = sleepPlan.bed;
   $("#clock-lights").textContent = sleepPlan.lightsOut;
   $("#clock-wake").textContent = sleepPlan.wake;
+}
+
+function renderDailyPlan(data) {
+  const plan = data.todayPlan || {};
+  const ai = data.ai || {};
+  const isAI = plan.source === "ai";
+  $("#plan-source").textContent = isAI ? `AI DAILY PLAN · ${plan.model || "MODEL"}` : "FALLBACK PLAN";
+  $("#plan-generated").textContent = isAI
+    ? localTimeText(plan.generatedAt)
+    : ai.status === "generating"
+      ? "正在生成"
+      : ai.configured
+        ? "规则备用"
+        : "未连接 AI";
+  const rows = Array.isArray(plan.timeline) ? plan.timeline : [];
+  $("#daily-plan-timeline").innerHTML = rows.map((item) => `
+    <div class="timeline-row"><time>${escapeHTML(item.time)}</time><strong>${escapeHTML(item.title)}</strong><p>${escapeHTML(item.detail)}</p></div>
+  `).join("") || `<p class="empty-state">暂无今日计划。</p>`;
+  $("#ai-status").textContent = `AI：${ai.message || "状态未知"}`;
+  $("#ai-plan-button").disabled = ai.status === "generating" || !ai.configured;
+  $("#ai-plan-button").textContent = ai.status === "generating" ? "正在生成" : "重新生成今日计划";
 }
 
 function renderComparisons(data) {
@@ -186,6 +208,7 @@ function renderDashboard(data) {
   $("#sync-time").textContent = `可用睡眠数据截至 ${data.dataThrough}`;
   renderProfile(data.profile, data.sleepPlan.phaseIndex);
   renderStatus(data);
+  renderDailyPlan(data);
   renderComparisons(data);
   renderExperiment(data.review);
   drawScoreChart(data.trend);
@@ -240,6 +263,21 @@ async function requestSync() {
     showToast(error.message);
     button.disabled = false;
     button.textContent = "立即同步 Oura";
+  }
+}
+
+async function requestAIPlan() {
+  const button = $("#ai-plan-button");
+  button.disabled = true;
+  button.textContent = "正在启动";
+  try {
+    const response = await fetch("/api/ai-plan", { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "无法生成计划");
+    showToast(data.message || "AI 计划已开始生成");
+    window.setTimeout(() => fetchDashboard(), 2500);
+  } catch (error) {
+    showToast(error.message);
   }
 }
 
@@ -408,6 +446,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $all(".tab").forEach((button) => button.addEventListener("click", () => setTab(button.dataset.tab)));
   $("#refresh-button").addEventListener("click", () => fetchDashboard(true));
   $("#sync-button").addEventListener("click", requestSync);
+  $("#ai-plan-button").addEventListener("click", requestAIPlan);
   $("#notification-button").addEventListener("click", enableNotifications);
   $("#daily-item-options").addEventListener("change", (event) => {
     if (event.target.matches("[data-item-id]")) toggleDailyItem(event.target);

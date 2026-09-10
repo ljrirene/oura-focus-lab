@@ -133,16 +133,20 @@ h2 { font-size: 20px; line-height: 1.3; margin-bottom: 0; }
 .sleep-clock strong { font-size: 23px; }
 .sleep-clock span { color: #666965; font-size: 12px; margin-top: 5px; }
 
-.today-guidance, .review-verdict, .cycle-explainer, .data-actions, .data-notes, .item-settings, .command-panel {
+.today-guidance, .daily-plan, .review-verdict, .cycle-explainer, .data-actions, .data-notes, .item-settings, .command-panel {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   margin-bottom: 36px;
   padding: 24px;
 }
+.plan-generated { color: var(--muted); font-size: 12px; }
+.compact-timeline { margin-bottom: 0; }
+.compact-timeline .timeline-row:last-child { border-bottom: 0; }
 .today-guidance { border-left: 5px solid #8aa7cc; display: grid; gap: 30px; grid-template-columns: 0.8fr 2fr; }
 .today-guidance.green { border-left-color: var(--green); }
 .today-guidance.red { border-left-color: #c77a73; }
+.status-reason { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 8px 0 0; }
 .guidance-grid { display: grid; gap: 0; grid-template-columns: repeat(3, 1fr); }
 .guidance-grid div { border-left: 1px solid var(--line); padding: 2px 20px; }
 .guidance-grid span { color: var(--muted); font-size: 12px; font-weight: 700; }

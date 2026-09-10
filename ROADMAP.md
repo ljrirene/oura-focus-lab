@@ -17,6 +17,7 @@
 - [x] User-managed medication, supplement, and other daily items
 - [ ] Optional interaction-spacing notes backed by authoritative references
 - [ ] Configurable Readiness and workload rules
+- [x] Optional AI-generated daily plan with validated sleep and medication boundaries
 - [ ] Membership Hub export importer
 - [ ] Demo mode with synthetic data and safe screenshots
 

@@ -54,6 +54,17 @@ OURA_APP_PASSWORD=replace-with-a-long-random-password
 
 The server refuses a non-local bind without `OURA_APP_PASSWORD`. Basic Auth must only be used behind HTTPS.
 
+## AI Daily Plan
+
+Add the API key only to the ignored `.env` file:
+
+```dotenv
+OPENAI_API_KEY=your-project-key
+OPENAI_MODEL=gpt-5-mini
+```
+
+The app generates at most one cached plan per day after a successful Oura sync. The UI can request a manual regeneration. The AI may adjust work, exercise, breaks, learning, and sleep preparation, but validation keeps the configured wake time fixed and rejects sleep shifts beyond 60 minutes. Medication names, doses, and instructions are not sent in the planning context or controlled by the model.
+
 ## Storage Overrides
 
 The sync CLI supports `--raw-dir`, `--csv-dir`, and `--token-file`. Keep all destinations outside cloud-synced folders unless you have consciously enabled encryption and access controls.
