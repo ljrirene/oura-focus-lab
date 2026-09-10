@@ -35,10 +35,24 @@ cp config/profile.example.json config/user.json
 - `schedule.weekPlan`: the training plan shown in the Schedule view
 - `targets`: sleep duration, Readiness, Sleep Score, and optional HRV reference
 - `dailyItems`: user-defined medication, supplement, or other check-offs
+- `sync`: automatic sync interval, recent lookback window, and selected endpoints
 
 Daily items can be managed from the dashboard's Data page. The app assigns stable IDs and saves completion state to `data/daily_item_log.json`; both files stay local. There are no checked-in medication or supplement defaults.
 
 The recovery action thresholds in `recovery_status()` are product heuristics. They are not medical rules and should be changed cautiously.
+
+Automatic sync defaults to every 60 minutes and requests only the most recent 3 days. The minimum interval is 15 minutes and the maximum lookback is 14 days. Historical CSV rows are preserved by the incremental merge.
+
+## Public Preview Authentication
+
+Set these only when exposing the local server through an HTTPS tunnel:
+
+```dotenv
+OURA_APP_USERNAME=oura
+OURA_APP_PASSWORD=replace-with-a-long-random-password
+```
+
+The server refuses a non-local bind without `OURA_APP_PASSWORD`. Basic Auth must only be used behind HTTPS.
 
 ## Storage Overrides
 

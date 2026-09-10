@@ -46,5 +46,11 @@
     "sleepScore": 80,
     "hrv": null
   },
+  "sync": {
+    "enabled": true,
+    "intervalMinutes": 60,
+    "lookbackDays": 3,
+    "endpoints": ["daily_sleep", "daily_readiness", "sleep", "heartrate", "daily_activity", "daily_stress", "workout"]
+  },
   "dailyItems": []
 }

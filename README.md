@@ -13,9 +13,11 @@ The browser dashboard runs on your computer. OAuth tokens, health CSV files, per
 - OAuth 2.0 authorization for Oura API V2
 - Paginated historical sync with rate-limit handling
 - Raw JSON snapshots and incrementally merged CSV tables
+- Automatic rolling sync of recent data with visible status and retry
 - Local dashboard for Readiness, sleep, HRV, schedules, and trends
 - User-defined medication, supplement, or routine check-offs stored only on the local machine
 - Calendar reminder export
+- Installable PWA shell for phone access
 - Exploratory cognition, sleep-cycle, and longitudinal reports
 - No runtime dependencies outside the Python standard library
 
@@ -129,6 +131,7 @@ CSV files are merged by the best available stable key (`id`, `day`, `timestamp`,
 - [Architecture](docs/ARCHITECTURE.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Privacy and Security](docs/PRIVACY.md)
+- [Deployment and Mobile Preview](docs/DEPLOYMENT.md)
 - [Code Review](docs/CODE_REVIEW.md)
 - [Roadmap](ROADMAP.md)
 - [Contributing](CONTRIBUTING.md)

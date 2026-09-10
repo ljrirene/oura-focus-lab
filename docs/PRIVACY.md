@@ -11,6 +11,7 @@ This project protects against accidental publication through Git and casual acce
 - OAuth tokens are stored in `.oura/tokens.json` with mode `0600`.
 - Tokens, raw payloads, CSV files, local profiles, logs, exports, and reports are ignored by Git.
 - The dashboard binds to `127.0.0.1` by default.
+- Non-local binding requires a password; temporary public previews must use HTTPS.
 - Static responses use a restrictive content security policy and disable MIME sniffing.
 - Writes use atomic replacement to reduce corruption after interruption.
 
@@ -32,6 +33,7 @@ Inspect every staged file with `git diff --cached`. Never add ignored files with
 - Use generated or heavily aggregated sample data for screenshots.
 - Revoke the Oura application credentials immediately if a secret is exposed.
 - Avoid publishing exact sleep and wake timestamps without considering routine privacy.
+- Stop temporary tunnels as soon as mobile testing is complete.
 
 ## Medical Boundary
 

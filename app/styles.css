@@ -54,6 +54,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .sync-state { align-items: center; color: var(--muted); display: flex; font-size: 12px; gap: 8px; text-align: right; }
 .sync-dot { background: var(--green); border-radius: 50%; height: 8px; width: 8px; }
+.sync-dot.syncing { animation: sync-pulse 1.2s ease-in-out infinite; background: var(--blue); }
+.sync-dot.error, .sync-dot.needs_auth { background: var(--red); }
+.sync-dot.idle { background: #9a9c98; }
+@keyframes sync-pulse { 50% { opacity: 0.35; transform: scale(0.75); } }
 
 .tabbar {
   background: var(--surface);
@@ -189,8 +193,10 @@ label { color: var(--muted); font-size: 12px; font-weight: 650; }
 }
 .primary-button { background: var(--green); border: 1px solid var(--green); color: white; }
 .primary-button:hover { background: #185c3d; }
+.primary-button:disabled, .secondary-button:disabled { cursor: wait; opacity: 0.58; }
 .secondary-button { background: var(--surface); border: 1px solid #bfc9c2; color: var(--ink); }
 .link-button { align-items: center; display: inline-flex; text-decoration: none; }
+[hidden] { display: none !important; }
 
 .review-verdict h2 { font-size: 24px; max-width: 740px; }
 .progress-track { background: var(--surface-alt); border-radius: 4px; height: 8px; margin-top: 22px; overflow: hidden; }

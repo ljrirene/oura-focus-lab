@@ -4,12 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
+import hmac
 import json
 import math
 import os
 import statistics
+import subprocess
+import sys
 import threading
+import time
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta
@@ -26,8 +31,14 @@ CSV_DIR = PROJECT_ROOT / "data" / "csv"
 PROFILE_PATH = PROJECT_ROOT / "config" / "user.json"
 PROFILE_EXAMPLE_PATH = PROJECT_ROOT / "config" / "profile.example.json"
 DAILY_ITEM_LOG_PATH = PROJECT_ROOT / "data" / "daily_item_log.json"
+SYNC_STATE_PATH = PROJECT_ROOT / "data" / "sync_state.json"
 PROFILE_LOCK = threading.Lock()
 DAILY_ITEM_LOCK = threading.Lock()
+SYNC_LOCK = threading.Lock()
+SYNC_STATE_LOCK = threading.Lock()
+APP_USERNAME = ""
+APP_PASSWORD = ""
+DEFAULT_SYNC_ENDPOINTS = ["daily_sleep", "daily_readiness", "sleep", "heartrate", "daily_activity", "daily_stress", "workout"]
 
 
 def load_env_file(path: Path) -> None:
@@ -68,6 +79,137 @@ def write_json_atomic(path: Path, payload: Any) -> None:
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def sync_settings(profile: dict[str, Any]) -> dict[str, Any]:
+    configured = profile.get("sync", {})
+    if not isinstance(configured, dict):
+        configured = {}
+    endpoints = configured.get("endpoints", DEFAULT_SYNC_ENDPOINTS)
+    if not isinstance(endpoints, list):
+        endpoints = DEFAULT_SYNC_ENDPOINTS
+    selected = [str(name) for name in endpoints if str(name) in DEFAULT_SYNC_ENDPOINTS]
+    return {
+        "enabled": configured.get("enabled") is not False,
+        "intervalMinutes": max(15, min(1440, int(configured.get("intervalMinutes", 60)))),
+        "lookbackDays": max(1, min(14, int(configured.get("lookbackDays", 3)))),
+        "endpoints": selected or list(DEFAULT_SYNC_ENDPOINTS),
+    }
+
+
+def valid_basic_authorization(header: str, username: str, password: str) -> bool:
+    if not password:
+        return True
+    if not header.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(header[6:], validate=True).decode("utf-8")
+        supplied_username, supplied_password = decoded.split(":", 1)
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return hmac.compare_digest(supplied_username, username) and hmac.compare_digest(supplied_password, password)
+
+
+def current_sync_state() -> dict[str, Any]:
+    state = read_json(SYNC_STATE_PATH, {})
+    if not isinstance(state, dict):
+        state = {}
+    settings = sync_settings(load_profile())
+    return {
+        "status": state.get("status", "idle"),
+        "message": state.get("message", "等待首次自动同步"),
+        "lastAttempt": state.get("lastAttempt"),
+        "lastSuccess": state.get("lastSuccess"),
+        "nextSync": state.get("nextSync"),
+        "range": state.get("range"),
+        "enabled": settings["enabled"],
+        "intervalMinutes": settings["intervalMinutes"],
+        "lookbackDays": settings["lookbackDays"],
+        "endpoints": settings["endpoints"],
+    }
+
+
+def update_sync_state(**changes: Any) -> dict[str, Any]:
+    with SYNC_STATE_LOCK:
+        state = current_sync_state()
+        state.update(changes)
+        write_json_atomic(SYNC_STATE_PATH, state)
+        return state
+
+
+def run_incremental_sync(trigger: str = "automatic") -> None:
+    if not SYNC_LOCK.acquire(blocking=False):
+        return
+    try:
+        settings = sync_settings(load_profile())
+        now = datetime.now().astimezone()
+        end_day = date.today()
+        start_day = end_day - timedelta(days=settings["lookbackDays"] - 1)
+        next_sync = now + timedelta(minutes=settings["intervalMinutes"])
+        update_sync_state(
+            status="syncing",
+            message="正在读取 Oura 最新数据",
+            lastAttempt=now.isoformat(timespec="seconds"),
+            nextSync=next_sync.isoformat(timespec="seconds"),
+            range={"start": start_day.isoformat(), "end": end_day.isoformat()},
+            trigger=trigger,
+        )
+        command = [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "oura_sync.py"),
+            "sync",
+            "--start-date",
+            start_day.isoformat(),
+            "--end-date",
+            end_day.isoformat(),
+            "--endpoints",
+            *settings["endpoints"],
+            "--skip-raw",
+        ]
+        result = subprocess.run(
+            command,
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=15 * 60,
+        )
+        finished = datetime.now().astimezone().isoformat(timespec="seconds")
+        if result.returncode == 0:
+            update_sync_state(status="success", message="Oura 数据已更新", lastSuccess=finished)
+            return
+        output = f"{result.stdout}\n{result.stderr}".lower()
+        needs_auth = "run auth again" in output or "no token file" in output
+        update_sync_state(
+            status="needs_auth" if needs_auth else "error",
+            message="需要重新连接 Oura" if needs_auth else "同步失败，将自动重试",
+        )
+    except subprocess.TimeoutExpired:
+        update_sync_state(status="error", message="同步超时，将自动重试")
+    except (OSError, ValueError) as error:
+        update_sync_state(status="error", message=f"同步未完成：{str(error)[:100]}")
+    finally:
+        SYNC_LOCK.release()
+
+
+def request_incremental_sync(trigger: str = "manual") -> dict[str, Any]:
+    if SYNC_LOCK.locked():
+        return current_sync_state()
+    threading.Thread(target=run_incremental_sync, args=(trigger,), daemon=True).start()
+    for _ in range(20):
+        state = current_sync_state()
+        if state["status"] == "syncing":
+            return state
+        time.sleep(0.01)
+    return current_sync_state()
+
+
+def automatic_sync_loop(stop_event: threading.Event) -> None:
+    stop_event.wait(2)
+    while not stop_event.is_set():
+        settings = sync_settings(load_profile())
+        if settings["enabled"]:
+            run_incremental_sync("automatic")
+        stop_event.wait(settings["intervalMinutes"] * 60)
 
 
 def load_profile() -> dict[str, Any]:
@@ -630,11 +772,37 @@ class OuraAppHandler(BaseHTTPRequestHandler):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_bytes(body, "application/json; charset=utf-8", status)
 
+    def is_authorized(self) -> bool:
+        return valid_basic_authorization(
+            self.headers.get("Authorization", ""), APP_USERNAME, APP_PASSWORD
+        )
+
+    def require_authorization(self) -> bool:
+        if self.is_authorized():
+            return False
+        body = b"Authentication required"
+        self.send_response(HTTPStatus.UNAUTHORIZED)
+        self.send_header("WWW-Authenticate", 'Basic realm="Oura Focus Lab", charset="UTF-8"')
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+        return True
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        if path == "/healthz":
+            self.send_json({"status": "ok"})
+            return
+        if self.require_authorization():
+            return
         if path == "/api/dashboard":
             self.send_json(dashboard_payload())
+            return
+        if path == "/api/sync-status":
+            self.send_json(current_sync_state())
             return
         if path == "/api/reminders.ics":
             self.send_bytes(
@@ -662,6 +830,11 @@ class OuraAppHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+        if self.require_authorization():
+            return
+        if path == "/api/sync":
+            self.send_json(request_incremental_sync(), HTTPStatus.ACCEPTED)
+            return
         if path not in {"/api/items", "/api/daily-item"}:
             self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             return
@@ -681,6 +854,8 @@ class OuraAppHandler(BaseHTTPRequestHandler):
         self.send_json(saved)
 
     def do_DELETE(self) -> None:
+        if self.require_authorization():
+            return
         parsed = urlparse(self.path)
         if parsed.path != "/api/items":
             self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
@@ -706,23 +881,34 @@ class OuraAppHandler(BaseHTTPRequestHandler):
             ".css": "text/css; charset=utf-8",
             ".js": "text/javascript; charset=utf-8",
             ".json": "application/json; charset=utf-8",
+            ".webmanifest": "application/manifest+json; charset=utf-8",
+            ".svg": "image/svg+xml",
         }
         self.send_bytes(candidate.read_bytes(), content_types.get(candidate.suffix, "application/octet-stream"))
 
 
 def main() -> None:
+    global APP_PASSWORD, APP_USERNAME
     load_env_file(PROJECT_ROOT / ".env")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8787)
+    parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8787")))
     args = parser.parse_args()
+    APP_USERNAME = os.environ.get("OURA_APP_USERNAME", "oura")
+    APP_PASSWORD = os.environ.get("OURA_APP_PASSWORD", "")
+    if args.host not in {"127.0.0.1", "localhost", "::1"} and not APP_PASSWORD:
+        parser.error("OURA_APP_PASSWORD is required when binding beyond localhost")
     server = ThreadingHTTPServer((args.host, args.port), OuraAppHandler)
+    sync_stop = threading.Event()
+    sync_thread = threading.Thread(target=automatic_sync_loop, args=(sync_stop,), daemon=True)
+    sync_thread.start()
     print(f"Oura Focus Lab: http://{args.host}:{args.port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        sync_stop.set()
         server.server_close()
 
 

@@ -1,4 +1,6 @@
 import importlib.util
+import base64
+import subprocess
 import tempfile
 import unittest
 from datetime import date
@@ -84,6 +86,34 @@ class ScheduleTests(unittest.TestCase):
             ):
                 oura_app.write_json_atomic(root / "example.json", profile)
                 self.assertIn("TZID=Asia/Shanghai", oura_app.calendar_ics())
+
+
+class SyncTests(unittest.TestCase):
+    def test_incremental_sync_only_requests_recent_configured_endpoints(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "sync.json"
+            profile = sample_profile()
+            profile["sync"] = {
+                "enabled": True,
+                "intervalMinutes": 60,
+                "lookbackDays": 3,
+                "endpoints": ["daily_sleep", "sleep"],
+            }
+            completed = subprocess.CompletedProcess([], 0, stdout="ok", stderr="")
+            with mock.patch.object(oura_app, "SYNC_STATE_PATH", state_path), mock.patch.object(
+                oura_app, "load_profile", return_value=profile
+            ), mock.patch.object(oura_app.subprocess, "run", return_value=completed) as run:
+                oura_app.run_incremental_sync("test")
+
+            command = run.call_args.args[0]
+            self.assertEqual(command[-4:], ["--endpoints", "daily_sleep", "sleep", "--skip-raw"])
+            self.assertEqual(oura_app.read_json(state_path, {})["status"], "success")
+
+    def test_basic_auth_uses_constant_credentials(self):
+        token = base64.b64encode(b"oura:secret-value").decode("ascii")
+        self.assertTrue(oura_app.valid_basic_authorization(f"Basic {token}", "oura", "secret-value"))
+        self.assertFalse(oura_app.valid_basic_authorization(f"Basic {token}", "oura", "wrong"))
+        self.assertTrue(oura_app.valid_basic_authorization("", "oura", ""))
 
 
 if __name__ == "__main__":

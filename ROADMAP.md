@@ -31,9 +31,9 @@
 
 ## 0.4: Everyday App
 
-- [ ] Installable PWA with background-safe reminders
+- [x] Installable PWA shell with mobile home-screen support
 - [ ] macOS packaging and launch-at-login option
-- [ ] Incremental scheduled sync with visible retry state
+- [x] Incremental scheduled sync with visible retry state
 - [ ] Accessibility audit and English/Chinese localization
 - [ ] Mobile layout and offline-state test coverage
 

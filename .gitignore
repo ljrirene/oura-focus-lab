@@ -7,6 +7,7 @@ data/csv/*.csv
 data/cognitive_log.csv
 data/supplement_log.csv
 data/daily_item_log.json
+data/sync_state.json
 data/exports/*
 !data/exports/.gitkeep
 reports/*.md

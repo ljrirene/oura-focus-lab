@@ -1,4 +1,4 @@
-const state = { dashboard: null, dailyItems: [] };
+const state = { dashboard: null, dailyItems: [], sync: null, installPrompt: null };
 
 const metricLabels = {
   sleepHours: ["实际睡眠", "小时"],
@@ -30,6 +30,13 @@ function localDateText(isoDate) {
 function localISODate() {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function localTimeText(value) {
+  if (!value) return "--";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "--";
+  return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(parsed);
 }
 
 function readinessBand(score) {
@@ -176,13 +183,86 @@ function renderDashboard(data) {
   }
   $("#data-through").textContent = `Oura 至 ${data.dataThrough}`;
   $("#today-date").textContent = localDateText(localISODate());
-  $("#data-status").textContent = `睡眠数据截至 ${data.dataThrough}`;
-  $("#sync-time").textContent = data.lastLocalSync ? `本地 CSV 最近写入：${data.lastLocalSync.replace("T", " ")}` : "尚未找到同步时间";
+  $("#sync-time").textContent = `可用睡眠数据截至 ${data.dataThrough}`;
   renderProfile(data.profile, data.sleepPlan.phaseIndex);
   renderStatus(data);
   renderComparisons(data);
   renderExperiment(data.review);
   drawScoreChart(data.trend);
+}
+
+function renderSyncStatus(data) {
+  const labels = {
+    idle: "等待自动同步",
+    syncing: "正在同步 Oura",
+    success: "数据已更新",
+    error: "同步失败，将自动重试",
+    needs_auth: "需要重新连接 Oura",
+  };
+  const previousSuccess = state.sync?.lastSuccess;
+  state.sync = data;
+  $("#sync-status").textContent = labels[data.status] || data.message || "同步状态未知";
+  const range = data.range ? `${data.range.start} 至 ${data.range.end}` : `最近 ${data.lookbackDays || 3} 天`;
+  const timing = data.lastSuccess ? `上次成功 ${localTimeText(data.lastSuccess)}` : "尚未完成自动同步";
+  $("#sync-detail").textContent = `${timing} · 每 ${data.intervalMinutes || 60} 分钟 · ${range}`;
+  $("#sync-button").disabled = data.status === "syncing";
+  $("#sync-button").textContent = data.status === "syncing" ? "正在同步" : "立即同步 Oura";
+  const dot = $(".sync-dot");
+  dot.className = `sync-dot ${data.status || "idle"}`;
+  if (data.lastSuccess && previousSuccess && data.lastSuccess !== previousSuccess) {
+    Promise.all([fetchDashboard(), loadDailyItems()]);
+    showToast("Oura 最新数据已载入");
+  }
+}
+
+async function fetchSyncStatus() {
+  try {
+    const response = await fetch("/api/sync-status", { cache: "no-store" });
+    if (!response.ok) throw new Error("同步状态读取失败");
+    renderSyncStatus(await response.json());
+  } catch (error) {
+    $("#sync-status").textContent = "当前离线";
+    $("#sync-detail").textContent = "恢复网络后自动重试";
+    $(".sync-dot").className = "sync-dot error";
+  }
+}
+
+async function requestSync() {
+  const button = $("#sync-button");
+  button.disabled = true;
+  button.textContent = "正在启动";
+  try {
+    const response = await fetch("/api/sync", { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "无法启动同步");
+    renderSyncStatus(data);
+  } catch (error) {
+    showToast(error.message);
+    button.disabled = false;
+    button.textContent = "立即同步 Oura";
+  }
+}
+
+function setupInstallPrompt() {
+  const button = $("#install-button");
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (isIOS && !window.matchMedia("(display-mode: standalone)").matches) button.hidden = false;
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    state.installPrompt = event;
+    button.hidden = false;
+  });
+  button.addEventListener("click", async () => {
+    if (!state.installPrompt) {
+      showToast("Safari：分享 → 添加到主屏幕");
+      return;
+    }
+    state.installPrompt.prompt();
+    await state.installPrompt.userChoice;
+    state.installPrompt = null;
+    button.hidden = true;
+  });
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");
 }
 
 async function fetchDashboard(showMessage = false) {
@@ -327,6 +407,7 @@ function checkReminderClock() {
 document.addEventListener("DOMContentLoaded", async () => {
   $all(".tab").forEach((button) => button.addEventListener("click", () => setTab(button.dataset.tab)));
   $("#refresh-button").addEventListener("click", () => fetchDashboard(true));
+  $("#sync-button").addEventListener("click", requestSync);
   $("#notification-button").addEventListener("click", enableNotifications);
   $("#daily-item-options").addEventListener("change", (event) => {
     if (event.target.matches("[data-item-id]")) toggleDailyItem(event.target);
@@ -338,8 +419,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   const initialTab = location.hash.slice(1);
   if (["today", "review", "schedule", "data"].includes(initialTab)) setTab(initialTab);
-  await Promise.all([fetchDashboard(), loadDailyItems()]);
+  setupInstallPrompt();
+  await Promise.all([fetchDashboard(), loadDailyItems(), fetchSyncStatus()]);
   checkReminderClock();
   window.setInterval(checkReminderClock, 30000);
+  window.setInterval(fetchSyncStatus, 15 * 1000);
   window.setInterval(fetchDashboard, 15 * 60 * 1000);
 });

@@ -554,6 +554,7 @@ def command_sync(args: argparse.Namespace) -> None:
     token = get_access_token(args)
     sync_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     raw_run_dir = args.raw_dir / sync_id
+    skip_raw = getattr(args, "skip_raw", False)
     selected = args.endpoints or DEFAULT_ENDPOINTS
     manifest: dict[str, Any] = {
         "sync_id": sync_id,
@@ -561,7 +562,7 @@ def command_sync(args: argparse.Namespace) -> None:
         "start_date": args.start_date.isoformat(),
         "end_date": args.end_date.isoformat(),
         "endpoints": selected,
-        "raw_dir": str(raw_run_dir),
+        "raw_dir": None if skip_raw else str(raw_run_dir),
         "csv_dir": str(args.csv_dir),
         "results": {},
     }
@@ -572,7 +573,8 @@ def command_sync(args: argparse.Namespace) -> None:
         rows = payload["data"]
         raw_path = raw_run_dir / f"{endpoint_name}.json"
         csv_path = args.csv_dir / f"{endpoint_name}.csv"
-        write_json(raw_path, payload)
+        if not skip_raw:
+            write_json(raw_path, payload)
         csv_updated = not payload["errors"]
         if csv_updated:
             write_csv(csv_path, rows, merge_existing=True)
@@ -581,7 +583,7 @@ def command_sync(args: argparse.Namespace) -> None:
         manifest["results"][endpoint_name] = {
             "rows": len(rows),
             "errors": payload["errors"],
-            "raw_path": str(raw_path),
+            "raw_path": None if skip_raw else str(raw_path),
             "csv_path": str(csv_path),
             "csv_updated": csv_updated,
         }
@@ -589,8 +591,11 @@ def command_sync(args: argparse.Namespace) -> None:
             print(f"  {len(rows)} fetched rows merged into {csv_path}", flush=True)
 
     manifest["finished_at"] = iso_now()
-    write_json(raw_run_dir / "manifest.json", manifest)
-    print(f"\nDone. Raw data: {raw_run_dir}", flush=True)
+    if not skip_raw:
+        write_json(raw_run_dir / "manifest.json", manifest)
+        print(f"\nDone. Raw data: {raw_run_dir}", flush=True)
+    else:
+        print("\nDone. Raw snapshot skipped for rolling sync.", flush=True)
     print(f"CSV data: {args.csv_dir}", flush=True)
 
 
@@ -636,6 +641,7 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR, help="Directory for raw JSON snapshots")
     sync.add_argument("--csv-dir", type=Path, default=DEFAULT_CSV_DIR, help="Directory for flattened CSV files")
     sync.add_argument("--endpoints", nargs="+", choices=sorted(ENDPOINTS), default=None, help="Endpoints to fetch")
+    sync.add_argument("--skip-raw", action="store_true", help="Update merged CSVs without saving raw snapshots")
     sync.set_defaults(func=command_sync)
 
     endpoints = subparsers.add_parser("endpoints", help="List supported Oura API endpoints")

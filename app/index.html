@@ -4,8 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7f6f2">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>Oura Focus Lab</title>
-    <link rel="stylesheet" href="/styles.css?v=6">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.svg">
+    <link rel="stylesheet" href="/styles.css?v=7">
   </head>
   <body>
     <div class="app-shell">
@@ -139,9 +144,16 @@
         <section class="view" id="data-view" data-view="data">
           <div class="page-heading"><div><p class="eyebrow">本机保存</p><h1>数据与提醒</h1></div></div>
           <section class="data-actions">
-            <div><p class="section-kicker">本地数据状态</p><h2 id="data-status">读取中</h2><p id="sync-time">--</p></div>
+            <div>
+              <p class="section-kicker">自动同步</p>
+              <h2 id="sync-status">读取同步状态</h2>
+              <p id="sync-detail">--</p>
+              <p id="sync-time">--</p>
+            </div>
             <div class="button-row">
-              <button class="secondary-button" id="refresh-button" type="button">重新读取数据</button>
+              <button class="primary-button" id="sync-button" type="button">立即同步 Oura</button>
+              <button class="secondary-button" id="refresh-button" type="button">重新载入页面数据</button>
+              <button class="secondary-button" id="install-button" type="button" hidden>安装到手机</button>
               <a class="primary-button link-button" href="/api/reminders.ics" download>下载系统日历提醒</a>
               <button class="secondary-button" id="notification-button" type="button">开启页面通知</button>
             </div>
@@ -165,15 +177,10 @@
             </form>
             <div class="configured-items" id="configured-items"></div>
           </section>
-          <section class="command-panel" aria-labelledby="sync-title">
-            <div><p class="section-kicker">更新 Oura</p><h2 id="sync-title">同步后点“重新读取”</h2></div>
-            <code>python3 scripts/oura_sync.py sync --start-date 2025-01-01</code>
-            <p>同步完成后重新读取本地 CSV。</p>
-          </section>
         </section>
       </main>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/app.js?v=6" defer></script>
+    <script src="/app.js?v=7" defer></script>
   </body>
 </html>

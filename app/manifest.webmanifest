@@ -1,0 +1,18 @@
+{
+  "name": "Oura Focus Lab",
+  "short_name": "Focus Lab",
+  "description": "Private Oura sleep and recovery dashboard",
+  "start_url": "/#today",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f6f2",
+  "theme_color": "#f7f6f2",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

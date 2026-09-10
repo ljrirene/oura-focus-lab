@@ -13,9 +13,11 @@
 - Oura API V2 OAuth 授权与自动刷新
 - 分页拉取历史数据，处理速率限制
 - 保存原始 JSON，并增量合并 CSV
+- 后台滚动同步最近数据，并显示成功、进行中和重试状态
 - 本地查看 Readiness、睡眠、HRV、趋势和具体日程
 - 用户自行添加药品、补剂或日常项目，一键确认并仅保存在本机
 - 导出系统日历提醒
+- 可安装到手机主屏幕的 PWA 外壳
 - 生成认知状态、纵向恢复和睡眠周期探索报告
 - 运行时只使用 Python 标准库
 
@@ -96,6 +98,7 @@ node --check app/app.js
 - [技术架构](docs/ARCHITECTURE.md)
 - [配置说明](docs/CONFIGURATION.md)
 - [隐私与安全](docs/PRIVACY.md)
+- [部署与手机预览](docs/DEPLOYMENT.md)
 - [代码审查](docs/CODE_REVIEW.md)
 - [应用路线图](ROADMAP.md)
 - [贡献指南](CONTRIBUTING.md)

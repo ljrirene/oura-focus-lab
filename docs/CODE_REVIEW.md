@@ -34,7 +34,7 @@ Schedule details and named daily items were embedded across Python, JavaScript, 
 
 ### P2: No automated regression suite
 
-Eight standard-library tests now cover token preservation, private permissions, CSV merging, failed-sync preservation, daily item validation, schedule phases, and calendar timezone.
+Ten standard-library tests now cover token preservation, private permissions, CSV merging, failed-sync preservation, daily item validation, schedule phases, calendar timezone, rolling sync scope, and preview authentication.
 
 ## Remaining Risks
 
@@ -53,7 +53,7 @@ The cycle detector and automatic review thresholds are transparent but not exter
 ## Verification
 
 ```text
-python3 -m unittest discover -s tests -v  -> 8 passed
+python3 -m unittest discover -s tests -v  -> 10 passed
 python3 -m py_compile scripts/*.py       -> passed
 node --check app/app.js                  -> passed
 ```
