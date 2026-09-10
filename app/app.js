@@ -39,6 +39,44 @@ function localTimeText(value) {
   return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(parsed);
 }
 
+function dailyItemTimeValue(value) {
+  const text = String(value || "").trim();
+  const exact = /^(\d{1,2}):(\d{2})$/.exec(text);
+  if (exact) {
+    const hours = Number(exact[1]);
+    const minutes = Number(exact[2]);
+    if (hours < 24 && minutes < 60) return hours * 60 + minutes;
+  }
+  const namedTimes = {
+    "起床后": 7 * 60,
+    "早上": 8 * 60,
+    morning: 8 * 60,
+    "早餐": 8 * 60 + 30,
+    "上午": 10 * 60,
+    "中午": 12 * 60,
+    "午餐": 12 * 60 + 30,
+    noon: 12 * 60 + 30,
+    "下午": 15 * 60,
+    afternoon: 15 * 60,
+    "晚餐": 19 * 60,
+    dinner: 19 * 60,
+    "晚间": 21 * 60,
+    evening: 21 * 60,
+    "睡前": 23 * 60,
+    bedtime: 23 * 60,
+  };
+  return namedTimes[text.toLowerCase()] ?? 25 * 60;
+}
+
+function sortDailyItems(items) {
+  const categoryOrder = { medication: 0, supplement: 1, other: 2 };
+  return [...items].sort((left, right) =>
+    dailyItemTimeValue(left.time) - dailyItemTimeValue(right.time)
+    || (categoryOrder[left.category] ?? 3) - (categoryOrder[right.category] ?? 3)
+    || String(left.name || "").localeCompare(String(right.name || ""), "zh-CN")
+  );
+}
+
 function readinessBand(score) {
   if (score == null) return { key: "neutral", label: "NO SCORE" };
   if (score >= 85) return { key: "optimal", label: "OPTIMAL" };
@@ -317,7 +355,7 @@ async function fetchDashboard(showMessage = false) {
 function renderDailyItems(data) {
   const categoryLabels = { medication: "药品", supplement: "补剂", other: "其他" };
   const categoryClasses = { medication: "pigment-ultramarine", supplement: "pigment-viridian", other: "pigment-madder" };
-  const items = Array.isArray(data.items) ? data.items : [];
+  const items = sortDailyItems(Array.isArray(data.items) ? data.items : []);
   state.dailyItems = items;
   const groups = new Map();
   items.forEach((item) => {
