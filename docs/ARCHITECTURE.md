@@ -55,7 +55,7 @@ The server defaults to `127.0.0.1`. Basic Auth is optional on localhost and mand
 - OAuth refresh responses retain the prior refresh token when rotation is omitted.
 - Unknown `/api/` routes return JSON 404 responses rather than the SPA shell.
 - Daily item categories are allow-listed, item IDs must exist in the local profile, and request bodies are size-limited.
-- A single-process lock prevents overlapping scheduled and manual sync runs.
+- Thread and filesystem locks prevent overlapping scheduled or manual sync runs across the local and preview servers.
 - Scheduled sync requests a short rolling range, merges it into existing history, and skips repetitive raw snapshots. Explicit historical sync keeps raw snapshots by default.
 
 ## Compatibility

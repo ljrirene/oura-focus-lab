@@ -101,7 +101,8 @@ class SyncTests(unittest.TestCase):
             }
             completed = subprocess.CompletedProcess([], 0, stdout="ok", stderr="")
             with mock.patch.object(oura_app, "SYNC_STATE_PATH", state_path), mock.patch.object(
-                oura_app, "load_profile", return_value=profile
+                oura_app, "SYNC_PROCESS_LOCK_PATH", Path(directory) / ".sync.lock"
+            ), mock.patch.object(oura_app, "load_profile", return_value=profile
             ), mock.patch.object(oura_app.subprocess, "run", return_value=completed) as run:
                 oura_app.run_incremental_sync("test")
 

@@ -5,11 +5,12 @@
 Keep the Python app, OAuth tokens, profile, and Oura CSV files on your computer. Set a strong `OURA_APP_PASSWORD`, start the app, then expose it through a temporary HTTPS tunnel:
 
 ```bash
-python3 scripts/oura_app.py
-cloudflared tunnel --url http://127.0.0.1:8787
+OURA_APP_PASSWORD= python3 scripts/oura_app.py
+python3 scripts/oura_app.py --port 8788 --no-auto-sync
+cloudflared tunnel --url http://127.0.0.1:8788
 ```
 
-Open the generated `https://...trycloudflare.com` URL on the phone and enter the configured Basic Auth credentials. The URL works only while the computer, app, and tunnel remain online. Quick Tunnels are intended for testing and have no uptime guarantee.
+The first process keeps localhost access password-free and owns the automatic sync loop. The second process is the password-protected tunnel origin and does not start a duplicate sync loop. Open the generated `https://...trycloudflare.com` URL on the phone and enter the configured Basic Auth credentials. The URL works only while the computer, both app processes, and tunnel remain online. Quick Tunnels are intended for testing and have no uptime guarantee.
 
 On iPhone, use Safari's Share menu and choose **Add to Home Screen**. Browsers that support the install prompt show an **Install on phone** button in the Data view.
 

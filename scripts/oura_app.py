@@ -32,6 +32,7 @@ PROFILE_PATH = PROJECT_ROOT / "config" / "user.json"
 PROFILE_EXAMPLE_PATH = PROJECT_ROOT / "config" / "profile.example.json"
 DAILY_ITEM_LOG_PATH = PROJECT_ROOT / "data" / "daily_item_log.json"
 SYNC_STATE_PATH = PROJECT_ROOT / "data" / "sync_state.json"
+SYNC_PROCESS_LOCK_PATH = PROJECT_ROOT / "data" / ".sync.lock"
 PROFILE_LOCK = threading.Lock()
 DAILY_ITEM_LOCK = threading.Lock()
 SYNC_LOCK = threading.Lock()
@@ -137,8 +138,42 @@ def update_sync_state(**changes: Any) -> dict[str, Any]:
         return state
 
 
+def acquire_sync_process_lock() -> int | None:
+    SYNC_PROCESS_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        descriptor = os.open(SYNC_PROCESS_LOCK_PATH, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        try:
+            stale = time.time() - SYNC_PROCESS_LOCK_PATH.stat().st_mtime > 20 * 60
+        except OSError:
+            stale = False
+        if not stale:
+            return None
+        try:
+            SYNC_PROCESS_LOCK_PATH.unlink()
+        except OSError:
+            return None
+        return acquire_sync_process_lock()
+    os.write(descriptor, str(os.getpid()).encode("ascii"))
+    return descriptor
+
+
+def release_sync_process_lock(descriptor: int | None) -> None:
+    if descriptor is None:
+        return
+    os.close(descriptor)
+    try:
+        SYNC_PROCESS_LOCK_PATH.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def run_incremental_sync(trigger: str = "automatic") -> None:
     if not SYNC_LOCK.acquire(blocking=False):
+        return
+    process_lock = acquire_sync_process_lock()
+    if process_lock is None:
+        SYNC_LOCK.release()
         return
     try:
         settings = sync_settings(load_profile())
@@ -188,6 +223,7 @@ def run_incremental_sync(trigger: str = "automatic") -> None:
     except (OSError, ValueError) as error:
         update_sync_state(status="error", message=f"同步未完成：{str(error)[:100]}")
     finally:
+        release_sync_process_lock(process_lock)
         SYNC_LOCK.release()
 
 
@@ -893,6 +929,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8787")))
+    parser.add_argument("--no-auto-sync", action="store_true", help="Serve the dashboard without starting a second sync loop")
     args = parser.parse_args()
     APP_USERNAME = os.environ.get("OURA_APP_USERNAME", "oura")
     APP_PASSWORD = os.environ.get("OURA_APP_PASSWORD", "")
@@ -900,8 +937,9 @@ def main() -> None:
         parser.error("OURA_APP_PASSWORD is required when binding beyond localhost")
     server = ThreadingHTTPServer((args.host, args.port), OuraAppHandler)
     sync_stop = threading.Event()
-    sync_thread = threading.Thread(target=automatic_sync_loop, args=(sync_stop,), daemon=True)
-    sync_thread.start()
+    if not args.no_auto_sync:
+        sync_thread = threading.Thread(target=automatic_sync_loop, args=(sync_stop,), daemon=True)
+        sync_thread.start()
     print(f"Oura Focus Lab: http://{args.host}:{args.port}")
     try:
         server.serve_forever()
