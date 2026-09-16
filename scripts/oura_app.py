@@ -535,6 +535,11 @@ def ai_plan_context(dashboard: dict[str, Any], profile: dict[str, Any]) -> dict[
     }
 
 
+def ai_context_fingerprint(context: dict[str, Any]) -> str:
+    payload = json.dumps(context, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
 def generate_ai_plan() -> None:
     if not AI_PLAN_LOCK.acquire(blocking=False):
         return
@@ -578,7 +583,7 @@ def generate_ai_plan() -> None:
         with urlopen(request, timeout=90) as response:
             response_payload = json.loads(response.read().decode("utf-8"))
         plan = validate_ai_plan(json.loads(response_output_text(response_payload)), base_sleep)
-        fingerprint = hashlib.sha256(request_payload["input"].encode("utf-8")).hexdigest()[:16]
+        fingerprint = ai_context_fingerprint(context)
         write_json_atomic(
             AI_PLAN_PATH,
             {
@@ -600,15 +605,18 @@ def generate_ai_plan() -> None:
 
 def request_ai_plan_generation(force: bool = False) -> dict[str, Any]:
     cached = read_json(AI_PLAN_PATH, {})
-    if (
-        not force
-        and isinstance(cached, dict)
-        and cached.get("date") == date.today().isoformat()
-        and cached.get("source") == "ai"
-    ):
-        return ai_plan_status()
     if not os.environ.get("OPENAI_API_KEY"):
         return ai_plan_status()
+    if not force and isinstance(cached, dict):
+        dashboard = dashboard_payload(include_ai=False)
+        if not dashboard.get("error"):
+            context = ai_plan_context(dashboard, load_profile())
+            if (
+                cached.get("date") == date.today().isoformat()
+                and cached.get("source") == "ai"
+                and cached.get("contextFingerprint") == ai_context_fingerprint(context)
+            ):
+                return ai_plan_status()
     threading.Thread(target=generate_ai_plan, daemon=True).start()
     return ai_plan_status()
 

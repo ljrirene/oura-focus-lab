@@ -146,6 +146,12 @@ class AIPlanTests(unittest.TestCase):
         payload = {"output": [{"type": "message", "content": [{"type": "output_text", "text": "{\"ok\":true}"}]}]}
         self.assertEqual(oura_app.response_output_text(payload), '{"ok":true}')
 
+    def test_ai_context_fingerprint_changes_with_new_wearable_data(self):
+        first = {"date": "2025-01-01", "latestNight": {"readiness": 75}, "fixedMedicationSlotsWithoutNames": []}
+        second = {"date": "2025-01-01", "latestNight": {"readiness": 76}, "fixedMedicationSlotsWithoutNames": []}
+        self.assertEqual(oura_app.ai_context_fingerprint(first), oura_app.ai_context_fingerprint(dict(first)))
+        self.assertNotEqual(oura_app.ai_context_fingerprint(first), oura_app.ai_context_fingerprint(second))
+
     def test_ai_context_excludes_medication_names(self):
         dashboard = {
             "latest": {"readiness": 75},
