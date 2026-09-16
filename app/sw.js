@@ -1,5 +1,5 @@
-const CACHE = "oura-focus-shell-v8";
-const SHELL = ["/", "/index.html", "/styles.css?v=11", "/app.js?v=14", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "oura-focus-shell-v9";
+const SHELL = ["/", "/index.html", "/styles.css?v=12", "/app.js?v=15", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));

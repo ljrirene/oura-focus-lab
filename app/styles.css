@@ -288,11 +288,17 @@ label { color: var(--muted); font-size: 12px; font-weight: 650; }
 }
 .item-form input:focus, .item-form select:focus { border-color: var(--green); outline: 3px solid rgba(57, 123, 106, 0.12); }
 .item-form .wide-label { grid-column: span 2; }
+.timing-advice { background: var(--green-soft); border-left: 3px solid var(--green); color: #315b50; font-size: 12px; line-height: 1.55; padding: 10px 12px; }
 .configured-items { border-top: 1px solid var(--line); grid-column: 2; }
 .configured-item { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding: 12px 0; }
-.configured-item strong, .configured-item span { display: block; }
+.configured-item strong, .configured-item span, .configured-item small { display: block; }
 .configured-item span { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.configured-item small { color: #315b50; font-size: 11px; line-height: 1.45; margin-top: 5px; }
 .configured-item button { background: transparent; border: 0; color: var(--red); cursor: pointer; font-size: 12px; padding: 8px; }
+.recommendation-action { align-items: center; background: var(--green-soft); border-bottom: 1px solid #c9ded5; display: flex; gap: 16px; justify-content: space-between; padding: 12px; }
+.recommendation-action strong, .recommendation-action span { display: block; }
+.recommendation-action span { color: var(--muted); font-size: 11px; margin-top: 3px; }
+.recommendation-action button { background: var(--green); border: 0; border-radius: 5px; color: white; cursor: pointer; font-size: 12px; font-weight: 700; padding: 8px 11px; white-space: nowrap; }
 .empty-state { color: var(--muted); font-size: 13px; margin: 12px 0; }
 
 .cycle-explainer, .data-actions { align-items: center; display: grid; gap: 60px; grid-template-columns: 1.35fr 1fr; }

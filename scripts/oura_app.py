@@ -383,6 +383,33 @@ def delete_profile_item(item_id: str) -> bool:
     return True
 
 
+def update_profile_item(payload: dict[str, Any]) -> dict[str, str]:
+    item_id = str(payload.get("id") or "")
+    time_text = str(payload.get("time") or "").strip()[:5]
+    if not item_id:
+        raise ValueError("项目不存在")
+    if time_text:
+        try:
+            datetime.strptime(time_text, "%H:%M")
+        except ValueError as error:
+            raise ValueError("时间格式无效") from error
+    with PROFILE_LOCK:
+        profile = load_profile()
+        items = profile.get("dailyItems", [])
+        if not isinstance(items, list):
+            raise ValueError("项目不存在")
+        updated = None
+        for item in items:
+            if isinstance(item, dict) and item.get("id") == item_id:
+                item["time"] = time_text
+                updated = item
+                break
+        if updated is None:
+            raise ValueError("项目不存在")
+        write_json_atomic(PROFILE_PATH, profile)
+    return updated
+
+
 def daily_item_state(day_text: str) -> dict[str, Any]:
     log = read_json(DAILY_ITEM_LOG_PATH, {})
     taken = log.get(day_text, {}) if isinstance(log, dict) else {}
@@ -1446,6 +1473,27 @@ class OuraAppHandler(BaseHTTPRequestHandler):
             if not isinstance(payload, dict):
                 raise ValueError("请求格式无效")
             saved = add_profile_item(payload) if path == "/api/items" else save_daily_item(payload)
+        except (ValueError, json.JSONDecodeError) as error:
+            self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+            return
+        self.send_json(saved)
+
+    def do_PATCH(self) -> None:
+        if self.require_authorization():
+            return
+        if urlparse(self.path).path != "/api/items":
+            self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length < 2:
+                raise ValueError("请求格式无效")
+            if length > 4_000:
+                raise ValueError("请求过大")
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("请求格式无效")
+            saved = update_profile_item(payload)
         except (ValueError, json.JSONDecodeError) as error:
             self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return

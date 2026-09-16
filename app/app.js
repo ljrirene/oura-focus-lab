@@ -16,6 +16,44 @@ const metricLabels = {
   hrv: ["HRV", "ms"],
 };
 
+const supplementPresets = [
+  {
+    id: "fish-oil",
+    name: "鱼油",
+    aliases: ["鱼油", "fish oil", "omega 3", "omega-3"],
+    time: "19:00",
+    note: "随正餐（含脂肪）；全天没有明确最佳时点",
+  },
+  {
+    id: "magnesium-l-threonate",
+    name: "苏糖酸镁",
+    aliases: ["苏糖酸镁", "magnesium l-threonate", "magnesium threonate"],
+    time: "21:00",
+    note: "固定晚间便于执行；没有可靠的最佳时点，按产品标签",
+  },
+  {
+    id: "coq10",
+    name: "辅酶 Q10",
+    aliases: ["辅酶q10", "辅酶 q10", "coq10", "coenzyme q10"],
+    time: "09:00",
+    note: "随早餐；少数人会失眠，因此不默认放在晚上",
+  },
+  {
+    id: "b-complex",
+    name: "B Complex",
+    aliases: ["b complex", "b-complex", "维生素b族", "b族维生素", "复合维生素b"],
+    time: "09:00",
+    note: "随早餐；没有明确最佳时点",
+  },
+  {
+    id: "multivitamin",
+    name: "复合维生素",
+    aliases: ["复合维生素", "multivitamin", "multivitamins"],
+    time: "12:30",
+    note: "随午餐；若含铁或钙，需核对与处方药的间隔",
+  },
+];
+
 function $(selector) { return document.querySelector(selector); }
 function $all(selector) { return Array.from(document.querySelectorAll(selector)); }
 function displayNumber(value, suffix = "") { return value == null ? "--" : `${value}${suffix}`; }
@@ -84,6 +122,15 @@ function sortDailyItems(items) {
     || (categoryOrder[left.category] ?? 3) - (categoryOrder[right.category] ?? 3)
     || String(left.name || "").localeCompare(String(right.name || ""), "zh-CN")
   );
+}
+
+function normalizedSupplementName(value) {
+  return String(value || "").toLowerCase().replace(/[\s_–—-]+/g, "");
+}
+
+function supplementPresetForName(name) {
+  const normalized = normalizedSupplementName(name);
+  return supplementPresets.find((preset) => preset.aliases.some((alias) => normalizedSupplementName(alias) === normalized)) || null;
 }
 
 function readinessBand(score) {
@@ -457,12 +504,26 @@ function renderDailyItems(data) {
   `).join("");
   $("#daily-item-count").textContent = `${items.filter((item) => item.taken).length} / ${items.length}`;
   $("#daily-item-empty").hidden = items.length > 0;
-  $("#configured-items").innerHTML = items.map((item) => `
-    <div class="configured-item">
-      <div><strong>${escapeHTML(item.name)}</strong><span>${escapeHTML(categoryLabels[item.category] || "其他")} · ${escapeHTML(item.time || "未定时间")}${item.note ? ` · ${escapeHTML(item.note)}` : ""}</span></div>
-      <button type="button" data-delete-item="${escapeHTML(item.id)}" aria-label="删除 ${escapeHTML(item.name)}">删除</button>
+  const recommendedUpdates = items.filter((item) => {
+    const preset = item.category === "supplement" ? supplementPresetForName(item.name) : null;
+    return preset && item.time !== preset.time;
+  });
+  const recommendationAction = recommendedUpdates.length ? `
+    <div class="recommendation-action">
+      <div><strong>${recommendedUpdates.length} 项补剂可使用推荐时间</strong><span>只更新时间，不覆盖你的备注。</span></div>
+      <button type="button" data-apply-recommendations>应用全部</button>
     </div>
-  `).join("") || `<p class="empty-state">尚未添加项目。</p>`;
+  ` : "";
+  const configuredItems = items.map((item) => {
+    const preset = item.category === "supplement" ? supplementPresetForName(item.name) : null;
+    return `
+      <div class="configured-item">
+        <div><strong>${escapeHTML(item.name)}</strong><span>${escapeHTML(categoryLabels[item.category] || "其他")} · ${escapeHTML(item.time || "未定时间")}${item.note ? ` · ${escapeHTML(item.note)}` : ""}</span>${preset ? `<small>推荐 ${preset.time} · ${escapeHTML(preset.note)}</small>` : ""}</div>
+        <button type="button" data-delete-item="${escapeHTML(item.id)}" aria-label="删除 ${escapeHTML(item.name)}">删除</button>
+      </div>
+    `;
+  }).join("");
+  $("#configured-items").innerHTML = recommendationAction + (configuredItems || `<p class="empty-state">尚未添加项目。</p>`);
 }
 
 async function loadDailyItems() {
@@ -511,10 +572,88 @@ async function addDailyItem(event) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "添加失败");
     event.currentTarget.reset();
+    syncSupplementForm();
     await loadDailyItems();
     showToast("已添加到本地清单");
   } catch (error) {
     showToast(error.message);
+  }
+}
+
+async function applySupplementRecommendations() {
+  const updates = state.dailyItems.map((item) => ({
+    item,
+    preset: item.category === "supplement" ? supplementPresetForName(item.name) : null,
+  })).filter(({ item, preset }) => preset && item.time !== preset.time);
+  if (!updates.length) return;
+  try {
+    const responses = await Promise.all(updates.map(({ item, preset }) => fetch("/api/items", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: item.id, time: preset.time }),
+    })));
+    if (responses.some((response) => !response.ok)) throw new Error("推荐时间保存失败");
+    await loadDailyItems();
+    showToast(`已更新 ${updates.length} 项补剂时间`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+function syncSupplementForm(applySelected = false) {
+  const isSupplement = $("#item-category").value === "supplement";
+  $("#supplement-preset-field").hidden = !isSupplement;
+  if (!isSupplement) {
+    $("#timing-advice").hidden = true;
+    return;
+  }
+  const selected = supplementPresets.find((preset) => preset.id === $("#supplement-preset").value);
+  if (selected && applySelected) {
+    $("#item-name").value = selected.name;
+    $("#item-time").value = selected.time;
+    $("#item-note").value = selected.note;
+  }
+  const preset = selected || supplementPresetForName($("#item-name").value);
+  $("#timing-advice").hidden = !preset;
+  $("#timing-advice").textContent = preset ? `推荐 ${preset.time} · ${preset.note}。时间可改，以产品标签和医生/药师建议为准。` : "";
+}
+
+async function downloadCalendar() {
+  const button = $("#calendar-button");
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "正在生成…";
+  try {
+    const response = await fetch("/api/reminders.ics", { cache: "no-store" });
+    if (!response.ok) throw new Error("日历生成失败");
+    const blob = await response.blob();
+    const file = new File([blob], "oura-focus-reminders.ics", { type: "text/calendar" });
+    let shared = false;
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: "Oura Focus Lab 提醒" });
+        shared = true;
+        showToast("已打开系统分享，请导入日历");
+      } catch (error) {
+        if (error.name === "AbortError") return;
+      }
+    }
+    if (!shared) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast("已下载 .ics，打开文件即可导入日历");
+    }
+  } catch (error) {
+    showToast(error.message || "日历导出失败");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
   }
 }
 
@@ -567,15 +706,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("#sync-button").addEventListener("click", requestSync);
   $("#ai-plan-button").addEventListener("click", requestAIPlan);
   $("#notification-button").addEventListener("click", enableNotifications);
+  $("#calendar-button").addEventListener("click", downloadCalendar);
   $("#voice-review-button").addEventListener("click", toggleVoiceReview);
   $("#daily-item-options").addEventListener("change", (event) => {
     if (event.target.matches("[data-item-id]")) toggleDailyItem(event.target);
   });
   $("#item-form").addEventListener("submit", addDailyItem);
+  $("#item-category").addEventListener("change", () => syncSupplementForm());
+  $("#item-name").addEventListener("input", () => syncSupplementForm());
+  $("#supplement-preset").addEventListener("change", () => syncSupplementForm(true));
   $("#configured-items").addEventListener("click", (event) => {
     const button = event.target.closest("[data-delete-item]");
     if (button) deleteDailyItem(button.dataset.deleteItem);
+    if (event.target.closest("[data-apply-recommendations]")) applySupplementRecommendations();
   });
+  $("#supplement-preset").innerHTML += supplementPresets.map((preset) => `<option value="${preset.id}">${preset.name}</option>`).join("");
+  syncSupplementForm();
   const initialTab = location.hash.slice(1);
   setTab(["today", "review", "data"].includes(initialTab) ? initialTab : "today");
   setupInstallPrompt();

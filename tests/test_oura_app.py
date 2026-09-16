@@ -71,6 +71,21 @@ class DailyItemTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "项目类型无效"):
             oura_app.add_profile_item({"name": "Example", "category": "invalid"})
 
+    def test_item_time_can_be_updated_without_changing_other_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(oura_app, "PROFILE_PATH", root / "user.json"), mock.patch.object(
+                oura_app, "PROFILE_EXAMPLE_PATH", root / "example.json"
+            ):
+                oura_app.write_json_atomic(root / "example.json", sample_profile())
+                item = oura_app.add_profile_item(
+                    {"name": "Example supplement", "category": "supplement", "time": "15:00", "note": "Keep"}
+                )
+                updated = oura_app.update_profile_item({"id": item["id"], "time": "08:30"})
+
+                self.assertEqual(updated["time"], "08:30")
+                self.assertEqual(updated["note"], "Keep")
+
 
 class ScheduleTests(unittest.TestCase):
     def test_schedule_uses_configured_phase_lengths(self):
@@ -88,6 +103,15 @@ class ScheduleTests(unittest.TestCase):
             ):
                 oura_app.write_json_atomic(root / "example.json", profile)
                 self.assertIn("TZID=Asia/Shanghai", oura_app.calendar_ics())
+
+    def test_calendar_has_balanced_alarm_blocks(self):
+        with mock.patch.object(oura_app, "load_profile", return_value=sample_profile()), mock.patch.object(
+            oura_app, "profile_items", return_value=[]
+        ):
+            calendar = oura_app.calendar_ics()
+
+        self.assertEqual(calendar.count("BEGIN:VALARM"), calendar.count("END:VALARM"))
+        self.assertTrue(calendar.endswith("END:VCALENDAR\r\n"))
 
 
 class SyncTests(unittest.TestCase):

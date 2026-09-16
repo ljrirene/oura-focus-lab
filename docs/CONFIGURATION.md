@@ -37,7 +37,7 @@ cp config/profile.example.json config/user.json
 - `dailyItems`: user-defined medication, supplement, or other check-offs
 - `sync`: automatic sync interval, recent lookback window, and selected endpoints
 
-Daily items can be managed from the dashboard's Data page. The app assigns stable IDs and saves completion state to `data/daily_item_log.json`; both files stay local. There are no checked-in medication or supplement defaults.
+Daily items can be managed from the dashboard's Data page. The app assigns stable IDs and saves completion state to `data/daily_item_log.json`; both files stay local. Common supplement presets can fill a practical default time and label-based note; they are editable convenience defaults, not prescriptions or claims that one clock time is medically optimal. There are no checked-in medication or supplement defaults.
 
 The recovery action thresholds in `recovery_status()` are product heuristics. They are not medical rules and should be changed cautiously.
 

@@ -10,7 +10,7 @@
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icon.svg">
-    <link rel="stylesheet" href="/styles.css?v=11">
+    <link rel="stylesheet" href="/styles.css?v=12">
   </head>
   <body>
     <div class="app-shell">
@@ -162,7 +162,7 @@
               <button class="secondary-button" id="refresh-button" type="button">重新载入页面数据</button>
               <button class="secondary-button" id="ai-plan-button" type="button">重新生成今日计划</button>
               <button class="secondary-button" id="install-button" type="button" hidden>安装到手机</button>
-              <a class="primary-button link-button" href="/api/reminders.ics" download>下载系统日历提醒</a>
+              <button class="primary-button" id="calendar-button" type="button">导出系统日历提醒</button>
               <button class="secondary-button" id="notification-button" type="button">开启页面通知</button>
             </div>
           </section>
@@ -179,8 +179,10 @@
             <form id="item-form" class="item-form">
               <label>名称<input id="item-name" name="name" maxlength="60" required></label>
               <label>类型<select id="item-category" name="category"><option value="medication">药品</option><option value="supplement">补剂</option><option value="other">其他</option></select></label>
+              <label id="supplement-preset-field" hidden>常用补剂<select id="supplement-preset" name="supplementPreset"><option value="">请选择</option></select></label>
               <label>时间<input id="item-time" name="time" type="time"></label>
               <label class="wide-label">备注<input id="item-note" name="note" maxlength="120" placeholder="例如：随餐"></label>
+              <div class="timing-advice wide-label" id="timing-advice" hidden></div>
               <button class="primary-button" type="submit">添加</button>
             </form>
             <div class="configured-items" id="configured-items"></div>
@@ -189,6 +191,6 @@
       </main>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/app.js?v=14" defer></script>
+    <script src="/app.js?v=15" defer></script>
   </body>
 </html>
