@@ -18,6 +18,7 @@
 - [ ] Optional interaction-spacing notes backed by authoritative references
 - [ ] Configurable Readiness and workload rules
 - [x] Optional AI-generated daily plan with validated sleep and medication boundaries
+- [x] Voice-to-text adherence review with local-only review history
 - [ ] Membership Hub export importer
 - [ ] Demo mode with synthetic data and safe screenshots
 

@@ -10,6 +10,7 @@ data/daily_item_log.json
 data/sync_state.json
 data/.sync.lock
 data/ai_daily_plan.json
+data/voice_reviews.json
 data/exports/*
 !data/exports/.gitkeep
 reports/*.md

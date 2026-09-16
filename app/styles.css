@@ -205,6 +205,26 @@ label { color: var(--muted); font-size: 12px; font-weight: 650; }
 .review-verdict h2 { font-size: 24px; max-width: 740px; }
 .progress-track { background: var(--surface-alt); border-radius: 4px; height: 8px; margin-top: 22px; overflow: hidden; }
 .progress-track span { background: var(--green); display: block; height: 100%; width: 0; }
+.voice-review { border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); margin: 8px 0 36px; padding: 28px 0 32px; }
+.voice-review .section-heading { margin-bottom: 10px; }
+.voice-review .section-heading > span, .voice-status, .voice-timer { color: var(--muted); font-size: 12px; }
+.voice-prompt { color: var(--muted); margin: 0 0 18px; }
+.voice-controls { align-items: center; display: flex; flex-wrap: wrap; gap: 14px; }
+.voice-button { align-items: center; display: inline-flex; gap: 9px; min-width: 180px; }
+.record-dot { background: white; border-radius: 50%; height: 9px; width: 9px; }
+.voice-button.is-recording { background: #4f7fd3; }
+.voice-button.is-recording .record-dot { animation: record-pulse 1.2s ease-in-out infinite; }
+.voice-status { margin: 12px 0 0; }
+.voice-result { border-left: 3px solid #4f7fd3; margin-top: 24px; padding: 2px 0 2px 20px; }
+.voice-result h3 { font-size: 20px; margin: 0 0 18px; }
+.voice-result-grid { display: grid; gap: 28px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.voice-result-grid span { color: var(--muted); font-size: 12px; font-weight: 750; text-transform: uppercase; }
+.voice-result-grid ul { margin: 10px 0 0; padding-left: 18px; }
+.voice-result-grid li { line-height: 1.55; margin-bottom: 7px; }
+.voice-result details { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 12px; }
+.voice-result summary { color: var(--muted); cursor: pointer; font-size: 12px; }
+.voice-result details p { color: var(--muted); line-height: 1.6; }
+@keyframes record-pulse { 50% { opacity: 0.35; transform: scale(0.8); } }
 .chart-legend { color: var(--muted); display: flex; font-size: 12px; gap: 16px; }
 .chart-legend span::before { border-radius: 2px; content: ""; display: inline-block; height: 3px; margin-right: 7px; vertical-align: middle; width: 20px; }
 .readiness-key::before { background: #14745d; }
@@ -338,6 +358,7 @@ label { color: var(--muted); font-size: 12px; font-weight: 650; }
   .timeline-row { gap: 5px 12px; grid-template-columns: 92px 1fr; }
   .timeline-row p { grid-column: 2; }
   .chart-wrap { height: 260px; }
+  .voice-result-grid { grid-template-columns: 1fr; }
   .data-notes { padding: 20px; }
   .supplement-group { align-items: start; grid-template-columns: 74px 1fr; }
   .supplement-options { display: grid; grid-template-columns: 1fr; }

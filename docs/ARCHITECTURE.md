@@ -33,11 +33,13 @@ Oura Focus Lab is intentionally local-first and dependency-light. It separates a
 | `GET` | `/api/ai-plan` | AI plan configuration and generation state |
 | `GET` | `/api/profile` | Local profile used by the dashboard |
 | `GET` | `/api/daily-items?date=YYYY-MM-DD` | User-defined items and completion state |
+| `GET` | `/api/voice-review?date=YYYY-MM-DD` | Local voice-review result for one day |
 | `POST` | `/api/items` | Add a medication, supplement, or other item |
 | `DELETE` | `/api/items?id=ITEM_ID` | Remove a configured item |
 | `POST` | `/api/daily-item` | Toggle one configured item for a date |
 | `POST` | `/api/sync` | Start one recent incremental sync |
 | `POST` | `/api/ai-plan` | Regenerate today's structured plan |
+| `POST` | `/api/voice-review?date=YYYY-MM-DD` | Transcribe one audio recording and generate an execution review |
 | `GET` | `/api/reminders.ics` | Download calendar reminders |
 
 The server defaults to `127.0.0.1`. Basic Auth is optional on localhost and mandatory when binding to a non-loopback interface. Public preview should use an HTTPS tunnel; the application must never be exposed over plain HTTP.
@@ -59,7 +61,8 @@ The server defaults to `127.0.0.1`. Basic Auth is optional on localhost and mand
 - Daily item categories are allow-listed, item IDs must exist in the local profile, and request bodies are size-limited.
 - Thread and filesystem locks prevent overlapping scheduled or manual sync runs across the local and preview servers.
 - Scheduled sync requests a short rolling range, merges it into existing history, and skips repetitive raw snapshots. Explicit historical sync keeps raw snapshots by default.
-- AI output is JSON Schema constrained, validated again locally, and cached for one day. Local rules remain the fallback.
+- AI output is JSON Schema constrained and validated again locally. Daily plans are cached until the wearable context changes; local rules remain the fallback.
+- Voice audio is streamed through the transcription endpoint and is never written to local storage. Transcripts and compact reviews are kept in an ignored local JSON file.
 
 ## Compatibility
 

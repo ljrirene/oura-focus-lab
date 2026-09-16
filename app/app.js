@@ -1,4 +1,13 @@
-const state = { dashboard: null, dailyItems: [], sync: null, installPrompt: null };
+const state = {
+  dashboard: null,
+  dailyItems: [],
+  sync: null,
+  installPrompt: null,
+  mediaRecorder: null,
+  voiceChunks: [],
+  voiceStartedAt: null,
+  voiceTimer: null,
+};
 
 const metricLabels = {
   sleepHours: ["实际睡眠", "小时"],
@@ -209,6 +218,102 @@ function renderExperiment(review) {
     const quality = metric.improved == null ? "" : metric.improved ? "positive" : "negative";
     return `<article class="comparison-card"><span>${metric.label}</span><strong>${second}</strong><small class="${quality}">${delta}${metric.delta == null ? " · 前 14 晚" : " · 较基线"}</small></article>`;
   }).join("");
+}
+
+function renderVoiceReview(data) {
+  const review = data?.review;
+  $("#voice-review-date").textContent = localDateText(data?.date || localISODate());
+  $("#voice-review-result").hidden = !review;
+  if (!review) return;
+  $("#voice-review-summary").textContent = review.summary || "已完成复盘";
+  $("#voice-review-blockers").innerHTML = (review.blockers || []).map((item) => `<li>${escapeHTML(item)}</li>`).join("")
+    || "<li>未识别到明确阻碍</li>";
+  $("#voice-review-tomorrow").innerHTML = (review.tomorrow || []).map((item) => `<li>${escapeHTML(item)}</li>`).join("")
+    || "<li>保留今天有效的部分</li>";
+  $("#voice-review-transcript").textContent = review.transcript || "";
+  $("#voice-review-status").textContent = `已复盘 · ${localTimeText(review.createdAt)}`;
+}
+
+async function loadVoiceReview() {
+  try {
+    const response = await fetch(`/api/voice-review?date=${localISODate()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("语音复盘读取失败");
+    renderVoiceReview(await response.json());
+  } catch (error) {
+    $("#voice-review-status").textContent = error.message;
+  }
+}
+
+function stopVoiceReview() {
+  if (state.mediaRecorder?.state === "recording") state.mediaRecorder.stop();
+}
+
+async function submitVoiceReview(blob) {
+  const button = $("#voice-review-button");
+  button.disabled = true;
+  $("#voice-button-label").textContent = "正在转写";
+  $("#voice-review-status").textContent = "Whisper 转写并生成复盘中";
+  try {
+    const response = await fetch(`/api/voice-review?date=${localISODate()}`, {
+      method: "POST",
+      headers: { "Content-Type": blob.type || "audio/webm" },
+      body: blob,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "语音复盘失败");
+    renderVoiceReview(data);
+    showToast("语音复盘已生成");
+  } catch (error) {
+    $("#voice-review-status").textContent = error.message;
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+    $("#voice-button-label").textContent = "重新语音复盘";
+    $("#voice-timer").textContent = "最长 90 秒";
+  }
+}
+
+async function toggleVoiceReview() {
+  if (state.mediaRecorder?.state === "recording") {
+    stopVoiceReview();
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    showToast("当前浏览器不支持录音");
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const preferredTypes = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"];
+    const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    state.mediaRecorder = recorder;
+    state.voiceChunks = [];
+    state.voiceStartedAt = Date.now();
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data.size) state.voiceChunks.push(event.data);
+    });
+    recorder.addEventListener("stop", () => {
+      stream.getTracks().forEach((track) => track.stop());
+      window.clearInterval(state.voiceTimer);
+      $("#voice-review-button").classList.remove("is-recording");
+      const blob = new Blob(state.voiceChunks, { type: recorder.mimeType || "audio/webm" });
+      state.mediaRecorder = null;
+      submitVoiceReview(blob);
+    });
+    recorder.start(500);
+    $("#voice-review-button").classList.add("is-recording");
+    $("#voice-button-label").textContent = "结束并生成复盘";
+    $("#voice-review-status").textContent = "正在录音";
+    state.voiceTimer = window.setInterval(() => {
+      const elapsed = Math.min(90, Math.floor((Date.now() - state.voiceStartedAt) / 1000));
+      $("#voice-timer").textContent = `${elapsed}s / 90s`;
+      if (elapsed >= 90) stopVoiceReview();
+    }, 250);
+  } catch (error) {
+    $("#voice-review-status").textContent = "需要麦克风权限才能录音";
+    showToast("请允许麦克风权限");
+  }
 }
 
 function drawScoreChart(rows) {
@@ -486,6 +591,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("#sync-button").addEventListener("click", requestSync);
   $("#ai-plan-button").addEventListener("click", requestAIPlan);
   $("#notification-button").addEventListener("click", enableNotifications);
+  $("#voice-review-button").addEventListener("click", toggleVoiceReview);
   $("#daily-item-options").addEventListener("change", (event) => {
     if (event.target.matches("[data-item-id]")) toggleDailyItem(event.target);
   });
@@ -497,7 +603,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const initialTab = location.hash.slice(1);
   if (["today", "review", "schedule", "data"].includes(initialTab)) setTab(initialTab);
   setupInstallPrompt();
-  await Promise.all([fetchDashboard(), loadDailyItems(), fetchSyncStatus()]);
+  await Promise.all([fetchDashboard(), loadDailyItems(), fetchSyncStatus(), loadVoiceReview()]);
   checkReminderClock();
   window.setInterval(checkReminderClock, 30000);
   window.setInterval(fetchSyncStatus, 15 * 1000);

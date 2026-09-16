@@ -15,6 +15,7 @@ The browser dashboard runs on your computer. OAuth tokens, health CSV files, per
 - Raw JSON snapshots and incrementally merged CSV tables
 - Automatic rolling sync of recent data with visible status and retry
 - Optional AI-generated daily schedule using compact Oura summaries
+- One-tap voice review with Whisper transcription and concise next-day adjustments
 - Local dashboard for Readiness, sleep, HRV, schedules, and trends
 - User-defined medication, supplement, or routine check-offs stored only on the local machine
 - Calendar reminder export

@@ -1,5 +1,7 @@
 import importlib.util
 import base64
+import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -173,6 +175,40 @@ class AIPlanTests(unittest.TestCase):
         self.assertNotIn("Private medicine", serialized)
         self.assertIn("固定用药", serialized)
         self.assertIn("morning", serialized)
+
+
+class VoiceReviewTests(unittest.TestCase):
+    def test_transcribe_audio_uses_whisper_multipart_request(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = json.dumps({"text": "今天下午没有按计划执行。"}).encode()
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False), mock.patch.object(
+            oura_app, "urlopen", return_value=response
+        ) as opened:
+            transcript = oura_app.transcribe_audio(b"audio-bytes", "audio/webm;codecs=opus")
+
+        request = opened.call_args.args[0]
+        self.assertEqual(transcript, "今天下午没有按计划执行。")
+        self.assertIn(b'name="model"', request.data)
+        self.assertIn(b"whisper-1", request.data)
+        self.assertIn(b'filename="review.webm"', request.data)
+
+    def test_voice_review_is_saved_only_to_local_review_file(self):
+        response = mock.MagicMock()
+        generated = {"summary": "晚间计划被工作挤占。", "blockers": ["临时任务"], "tomorrow": ["预留 20 分钟缓冲"]}
+        response.__enter__.return_value.read.return_value = json.dumps(
+            {"output": [{"type": "message", "content": [{"type": "output_text", "text": json.dumps(generated, ensure_ascii=False)}]}]}
+        ).encode()
+        dashboard = {"todayPlan": {"timeline": []}, "sleepPlan": {"lightsOut": "23:00"}}
+        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(
+            os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False
+        ), mock.patch.object(oura_app, "VOICE_REVIEW_PATH", Path(directory) / "voice_reviews.json"), mock.patch.object(
+            oura_app, "dashboard_payload", return_value=dashboard
+        ), mock.patch.object(oura_app, "urlopen", return_value=response):
+            result = oura_app.summarize_voice_review("2025-01-02", "我临时加班了。")
+            saved = json.loads((Path(directory) / "voice_reviews.json").read_text())
+
+        self.assertEqual(result["review"]["tomorrow"], ["预留 20 分钟缓冲"])
+        self.assertEqual(saved["2025-01-02"]["transcript"], "我临时加班了。")
 
 
 if __name__ == "__main__":

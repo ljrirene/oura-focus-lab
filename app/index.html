@@ -10,7 +10,7 @@
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icon.svg">
-    <link rel="stylesheet" href="/styles.css?v=10">
+    <link rel="stylesheet" href="/styles.css?v=11">
   </head>
   <body>
     <div class="app-shell">
@@ -111,6 +111,26 @@
             <h2 id="review-verdict">先收集数据</h2>
             <div class="progress-track" aria-label="自动收集睡眠夜进度"><span id="progress-fill"></span></div>
           </section>
+          <section class="voice-review" aria-labelledby="voice-review-title">
+            <div class="section-heading">
+              <div><p class="section-kicker">低输入复盘</p><h2 id="voice-review-title">说出今天哪里没按计划</h2></div>
+              <span id="voice-review-date">今天</span>
+            </div>
+            <p class="voice-prompt">说清偏离点、阻碍，以及明天愿意做的最小调整。</p>
+            <div class="voice-controls">
+              <button class="primary-button voice-button" id="voice-review-button" type="button"><span class="record-dot" aria-hidden="true"></span><span id="voice-button-label">开始语音复盘</span></button>
+              <span class="voice-timer" id="voice-timer">最长 90 秒</span>
+            </div>
+            <p class="voice-status" id="voice-review-status">主动提交后发送给 OpenAI；原始音频不在本机保存。</p>
+            <div class="voice-result" id="voice-review-result" hidden>
+              <h3 id="voice-review-summary"></h3>
+              <div class="voice-result-grid">
+                <div><span>阻碍</span><ul id="voice-review-blockers"></ul></div>
+                <div><span>明天调整</span><ul id="voice-review-tomorrow"></ul></div>
+              </div>
+              <details><summary>查看转写</summary><p id="voice-review-transcript"></p></details>
+            </div>
+          </section>
           <section aria-labelledby="trend-title">
             <div class="section-heading">
               <div><p class="section-kicker">最近 28 晚</p><h2 id="trend-title">恢复趋势</h2></div>
@@ -192,6 +212,6 @@
       </main>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/app.js?v=12" defer></script>
+    <script src="/app.js?v=13" defer></script>
   </body>
 </html>

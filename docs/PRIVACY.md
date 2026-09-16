@@ -39,6 +39,8 @@ Inspect every staged file with `git diff --cached`. Never add ignored files with
 
 The AI plan is disabled unless `OPENAI_API_KEY` is configured. When enabled, the server sends the latest-night metrics, recent aggregate trends, schedule constraints, and unnamed medication time slots to the OpenAI Responses API. It does not send raw Oura rows, OAuth credentials, medication names, doses, profile names, or contact details. Requests set `store: false`; review OpenAI's current API data controls before enabling the feature.
 
+Voice review is opt-in per recording. Pressing the record button and submitting sends that audio to the OpenAI transcription endpoint, then sends the resulting transcript with the day's compact plan to the Responses API. Raw audio is not written locally. Transcripts may contain whatever the user says and are stored only in ignored `data/voice_reviews.json`; avoid speaking information you do not want transcribed.
+
 ## Medical Boundary
 
 The software summarizes wearable estimates and personal observations. It must not be used to diagnose conditions, adjust medication, or replace professional medical care. User-entered daily items are reminders only, not product recommendations or interaction guidance.

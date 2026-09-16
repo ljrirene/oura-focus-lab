@@ -38,8 +38,10 @@ DAILY_ITEM_LOG_PATH = PROJECT_ROOT / "data" / "daily_item_log.json"
 SYNC_STATE_PATH = PROJECT_ROOT / "data" / "sync_state.json"
 SYNC_PROCESS_LOCK_PATH = PROJECT_ROOT / "data" / ".sync.lock"
 AI_PLAN_PATH = PROJECT_ROOT / "data" / "ai_daily_plan.json"
+VOICE_REVIEW_PATH = PROJECT_ROOT / "data" / "voice_reviews.json"
 PROFILE_LOCK = threading.Lock()
 DAILY_ITEM_LOCK = threading.Lock()
+VOICE_REVIEW_LOCK = threading.Lock()
 SYNC_LOCK = threading.Lock()
 SYNC_STATE_LOCK = threading.Lock()
 AI_PLAN_LOCK = threading.Lock()
@@ -99,6 +101,16 @@ AI_PLAN_SCHEMA = {
                 },
             },
         },
+    },
+}
+VOICE_REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["summary", "blockers", "tomorrow"],
+    "properties": {
+        "summary": {"type": "string"},
+        "blockers": {"type": "array", "maxItems": 3, "items": {"type": "string"}},
+        "tomorrow": {"type": "array", "maxItems": 3, "items": {"type": "string"}},
     },
 }
 
@@ -676,6 +688,136 @@ def request_ai_plan_generation(force: bool = False) -> dict[str, Any]:
     return ai_plan_status()
 
 
+def voice_review_for_day(day_text: str) -> dict[str, Any]:
+    reviews = read_json(VOICE_REVIEW_PATH, {})
+    review = reviews.get(day_text) if isinstance(reviews, dict) else None
+    return {"date": day_text, "review": review if isinstance(review, dict) else None}
+
+
+def transcribe_audio(audio: bytes, content_type: str) -> str:
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise ValueError("尚未配置 OpenAI API key")
+    media_types = {
+        "audio/webm": ("review.webm", "audio/webm"),
+        "audio/mp4": ("review.m4a", "audio/mp4"),
+        "audio/ogg": ("review.ogg", "audio/ogg"),
+        "audio/mpeg": ("review.mp3", "audio/mpeg"),
+        "audio/wav": ("review.wav", "audio/wav"),
+        "audio/x-m4a": ("review.m4a", "audio/x-m4a"),
+    }
+    normalized_type = content_type.split(";", 1)[0].strip().lower()
+    if normalized_type not in media_types:
+        raise ValueError("当前录音格式不受支持")
+    filename, file_type = media_types[normalized_type]
+    boundary = f"oura-focus-{uuid.uuid4().hex}"
+    parts = []
+
+    def add_field(name: str, value: str) -> None:
+        parts.extend(
+            [
+                f"--{boundary}\r\n".encode("ascii"),
+                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("ascii"),
+                value.encode("utf-8"),
+                b"\r\n",
+            ]
+        )
+
+    add_field("model", os.environ.get("OPENAI_TRANSCRIBE_MODEL", "whisper-1"))
+    add_field("response_format", "json")
+    add_field("prompt", "中文日程执行复盘，可能夹杂英文工作术语。")
+    parts.extend(
+        [
+            f"--{boundary}\r\n".encode("ascii"),
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'.encode("ascii"),
+            f"Content-Type: {file_type}\r\n\r\n".encode("ascii"),
+            audio,
+            b"\r\n",
+            f"--{boundary}--\r\n".encode("ascii"),
+        ]
+    )
+    body = b"".join(parts)
+    request = Request(
+        "https://api.openai.com/v1/audio/transcriptions",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+        method="POST",
+    )
+    with urlopen(request, timeout=120) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    transcript = str(payload.get("text") or "").strip()
+    if not transcript:
+        raise ValueError("没有识别到语音内容")
+    return transcript[:8_000]
+
+
+def summarize_voice_review(day_text: str, transcript: str) -> dict[str, Any]:
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    dashboard = dashboard_payload()
+    context = {
+        "date": day_text,
+        "transcript": transcript,
+        "todayPlan": dashboard.get("todayPlan", {}).get("timeline", []),
+        "sleepPlan": dashboard.get("sleepPlan", {}),
+    }
+    request_payload = {
+        "model": os.environ.get("OPENAI_MODEL", "gpt-5-mini"),
+        "store": False,
+        "instructions": (
+            "You are a concise Chinese execution-review assistant. Compare the spoken review with the planned day. "
+            "Identify concrete blockers without blame, then propose at most three small changes for tomorrow. "
+            "Do not diagnose, discuss medication interactions, or recommend changing medication. "
+            "Use short, specific Chinese; do not repeat the transcript."
+        ),
+        "input": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "voice_review",
+                "strict": True,
+                "schema": VOICE_REVIEW_SCHEMA,
+            }
+        },
+    }
+    request = Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(request_payload).encode("utf-8"),
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=90) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    generated = json.loads(response_output_text(payload))
+    if not isinstance(generated, dict):
+        raise ValueError("复盘结果格式无效")
+    review = {
+        "date": day_text,
+        "createdAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "transcript": transcript,
+        "summary": str(generated.get("summary") or "")[:400],
+        "blockers": [str(item)[:180] for item in generated.get("blockers", [])[:3]],
+        "tomorrow": [str(item)[:180] for item in generated.get("tomorrow", [])[:3]],
+        "transcriptionModel": os.environ.get("OPENAI_TRANSCRIBE_MODEL", "whisper-1"),
+        "reviewModel": request_payload["model"],
+    }
+    with VOICE_REVIEW_LOCK:
+        reviews = read_json(VOICE_REVIEW_PATH, {})
+        if not isinstance(reviews, dict):
+            reviews = {}
+        reviews[day_text] = review
+        recent_days = sorted(reviews)[-30:]
+        write_json_atomic(VOICE_REVIEW_PATH, {day: reviews[day] for day in recent_days})
+    return {"date": day_text, "review": review}
+
+
+def create_voice_review(day_text: str, audio: bytes, content_type: str) -> dict[str, Any]:
+    transcript = transcribe_audio(audio, content_type)
+    return summarize_voice_review(day_text, transcript)
+
+
 def number(value: Any) -> float | None:
     if value is None:
         return None
@@ -1243,6 +1385,15 @@ class OuraAppHandler(BaseHTTPRequestHandler):
                 return
             self.send_json(daily_item_state(day_text))
             return
+        if path == "/api/voice-review":
+            day_text = (parse_qs(parsed.query).get("date") or [date.today().isoformat()])[0][:10]
+            try:
+                date.fromisoformat(day_text)
+            except ValueError:
+                self.send_json({"error": "日期无效"}, HTTPStatus.BAD_REQUEST)
+                return
+            self.send_json(voice_review_for_day(day_text))
+            return
         if path.startswith("/api/"):
             self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             return
@@ -1257,6 +1408,33 @@ class OuraAppHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/ai-plan":
             self.send_json(request_ai_plan_generation(force=True), HTTPStatus.ACCEPTED)
+            return
+        if path == "/api/voice-review":
+            parsed = urlparse(self.path)
+            day_text = (parse_qs(parsed.query).get("date") or [date.today().isoformat()])[0][:10]
+            try:
+                date.fromisoformat(day_text)
+                length = int(self.headers.get("Content-Length", "0"))
+                if length < 512:
+                    raise ValueError("录音太短")
+                if length > 12_000_000:
+                    raise ValueError("录音过大，请控制在 90 秒内")
+                audio = self.rfile.read(length)
+                result = create_voice_review(
+                    day_text,
+                    audio,
+                    self.headers.get("Content-Type", "application/octet-stream"),
+                )
+            except HTTPError as error:
+                self.send_json({"error": f"OpenAI API 返回 {error.code}"}, HTTPStatus.BAD_GATEWAY)
+                return
+            except (URLError, OSError) as error:
+                self.send_json({"error": f"语音服务暂时不可用：{str(error)[:80]}"}, HTTPStatus.BAD_GATEWAY)
+                return
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+                return
+            self.send_json(result)
             return
         if path not in {"/api/items", "/api/daily-item"}:
             self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
