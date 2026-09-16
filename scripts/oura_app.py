@@ -86,6 +86,8 @@ AI_PLAN_SCHEMA = {
         },
         "timeline": {
             "type": "array",
+            "minItems": 10,
+            "maxItems": 16,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -453,6 +455,13 @@ def valid_clock(value: Any) -> bool:
     return parsed.strftime("%H:%M") == str(value)
 
 
+def timeline_start_minutes(value: Any) -> int | None:
+    match = re.search(r"(?<!\d)([01]?\d|2[0-3]):([0-5]\d)", str(value))
+    if not match:
+        return None
+    return int(match.group(1)) * 60 + int(match.group(2))
+
+
 def validate_ai_plan(plan: Any, base_sleep: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(plan, dict):
         raise ValueError("AI plan is not an object")
@@ -473,7 +482,7 @@ def validate_ai_plan(plan: Any, base_sleep: dict[str, Any]) -> dict[str, Any]:
     checked_sleep["wake"] = base_sleep.get("wake", "--")
     checked_sleep["instruction"] = str(sleep.get("instruction") or base_sleep.get("instruction") or "")[:220]
     checked_timeline = []
-    for item in timeline[:10]:
+    for item in timeline[:16]:
         if not isinstance(item, dict):
             continue
         time_text = str(item.get("time") or "")[:30]
@@ -483,6 +492,50 @@ def validate_ai_plan(plan: Any, base_sleep: dict[str, Any]) -> dict[str, Any]:
             checked_timeline.append({"time": time_text, "title": title, "detail": detail})
     if len(checked_timeline) < 3:
         raise ValueError("AI plan timeline is incomplete")
+    searchable_timeline = " ".join(
+        f'{item["title"]} {item["detail"]}' for item in checked_timeline
+    )
+    missing_anchors = []
+    if "晚餐" not in searchable_timeline:
+        missing_anchors.append(
+            {"time": "19:00", "title": "晚餐", "detail": "正常吃饭；晚间不再追加高负荷任务。"}
+        )
+    has_evening_block = any(
+        (timeline_start_minutes(item["time"]) or 0) >= 19 * 60 + 30
+        and any(marker in f'{item["title"]} {item["detail"]}' for marker in ("晚间", "放松", "社交", "娱乐"))
+        for item in checked_timeline
+    )
+    if not has_evening_block:
+        missing_anchors.append(
+            {
+                "time": "19:40-21:45",
+                "title": "晚间恢复",
+                "detail": "家务、社交或轻松娱乐；不追加学习，21:45 停止工作。",
+            }
+        )
+    has_sleep_anchor = any(
+        marker in searchable_timeline for marker in ("降光", "上床", "关灯", "睡前")
+    )
+    if not has_sleep_anchor:
+        missing_anchors.append(
+            {
+                "time": f'{checked_sleep.get("windDown", "--")}-{checked_sleep.get("lightsOut", "--")}',
+                "title": "睡前流程",
+                "detail": (
+                    f'{checked_sleep.get("windDown", "--")} 降光并完成固定睡前项目；'
+                    f'{checked_sleep.get("bed", "--")} 上床，{checked_sleep.get("lightsOut", "--")} 关灯。'
+                ),
+            }
+        )
+    if missing_anchors:
+        checked_timeline = checked_timeline[: 16 - len(missing_anchors)] + missing_anchors
+    checked_timeline.sort(
+        key=lambda item: (
+            timeline_start_minutes(item["time"])
+            if timeline_start_minutes(item["time"]) is not None
+            else 24 * 60
+        )
+    )
     return {
         "status": {
             "key": status["key"],
@@ -560,6 +613,8 @@ def generate_ai_plan() -> None:
                 "You are a concise Chinese daily planning engine for a private sleep and cognition dashboard. "
                 "Build a specific plan for this date from the supplied wearable data and configured constraints. "
                 "Vary work intensity, exercise, breaks, learning, and bedtime when the data supports it. "
+                "The timeline must cover the whole waking day in chronological order, from wake time through lights out. "
+                "Use 10-16 items and reserve separate entries for dinner, the post-dinner evening period, fixed bedtime items, wind-down, and bed. "
                 "Keep the configured wake time unchanged. Sleep times may move by at most 60 minutes. "
                 "Do not diagnose, recommend medication, change medication timing, dosage, or frequency, or name medicines. "
                 "Medication slots are fixed constraints managed outside your output. Use short, direct Chinese."

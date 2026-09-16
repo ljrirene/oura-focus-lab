@@ -63,7 +63,7 @@ OPENAI_API_KEY=your-project-key
 OPENAI_MODEL=gpt-5-mini
 ```
 
-After each successful Oura sync, the app compares the current planning context with the cached plan. It calls the AI again only when the date or wearable summary has changed; otherwise it reuses the cache. The UI can also request a manual regeneration. The AI may adjust work, exercise, breaks, learning, and sleep preparation, but validation keeps the configured wake time fixed and rejects sleep shifts beyond 60 minutes. Medication names, doses, and instructions are not sent in the planning context or controlled by the model.
+After each successful Oura sync, the app compares the current planning context with the cached plan. It calls the AI again only when the date or wearable summary has changed; otherwise it reuses the cache. The UI can also request a manual regeneration. Plans must cover wake time through lights out; server validation adds dinner and bedtime anchors if the model omits them. The AI may adjust work, exercise, breaks, learning, and sleep preparation, but validation keeps the configured wake time fixed and rejects sleep shifts beyond 60 minutes. Medication names, doses, and instructions are not sent in the planning context or controlled by the model.
 
 ## Storage Overrides
 

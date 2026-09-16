@@ -141,6 +141,9 @@ class AIPlanTests(unittest.TestCase):
         checked = oura_app.validate_ai_plan(generated, base)
         self.assertEqual(checked["sleepPlan"]["wake"], "07:00")
         self.assertEqual(checked["sleepPlan"]["lightsOut"], "22:45")
+        self.assertTrue(any(item["title"] == "晚餐" for item in checked["timeline"]))
+        self.assertTrue(any(item["title"] == "晚间恢复" for item in checked["timeline"]))
+        self.assertTrue(any(item["title"] == "睡前流程" for item in checked["timeline"]))
 
     def test_response_output_text_finds_message_content(self):
         payload = {"output": [{"type": "message", "content": [{"type": "output_text", "text": "{\"ok\":true}"}]}]}
