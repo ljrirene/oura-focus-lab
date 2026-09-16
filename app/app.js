@@ -231,8 +231,8 @@ function drawScoreChart(rows) {
   const labelIndexes = [...new Set([0, Math.floor((rows.length - 1) / 2), rows.length - 1])];
   const labels = labelIndexes.map((index) => `<text x="${x(index)}" y="${height - 8}" text-anchor="middle" fill="#7b8780" font-size="11">${rows[index].date.slice(5)}</text>`).join("");
   svg.innerHTML = `${grid}${labels}
-    <polyline points="${line("readiness")}" fill="none" stroke="#356b5b" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />
-    <polyline points="${line("sleepScore")}" fill="none" stroke="#3d5a84" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" />`;
+    <polyline points="${line("readiness")}" fill="none" stroke="#14745d" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" />
+    <polyline points="${line("sleepScore")}" fill="none" stroke="#4f7fd3" stroke-width="3.5" stroke-dasharray="10 7" stroke-linejoin="round" stroke-linecap="round" />`;
 }
 
 function renderDashboard(data) {
