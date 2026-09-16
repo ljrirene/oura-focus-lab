@@ -109,36 +109,12 @@ function setTab(name) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function renderProfile(profile, phaseIndex) {
-  const schedule = profile?.schedule || {};
-  const phases = Array.isArray(schedule.phases) ? schedule.phases : [];
-  const workday = Array.isArray(schedule.workday) ? schedule.workday : [];
-  const weekPlan = Array.isArray(schedule.weekPlan) ? schedule.weekPlan : [];
-  $("#transition-grid").innerHTML = phases.map((phase, index) => `
-    <article class="${index === phaseIndex ? "current-phase" : ""}"><span>${escapeHTML(phase.label || `Phase ${index + 1}`)}</span><strong>${escapeHTML(phase.lightsOut || "--")} → ${escapeHTML(phase.wake || "--")}</strong></article>
-  `).join("") || `<p class="empty-state">请在本地配置中添加睡眠阶段。</p>`;
-  $("#workday-timeline").innerHTML = workday.map(([time, title, detail]) => `
-    <div class="timeline-row"><time>${escapeHTML(time)}</time><strong>${escapeHTML(title)}</strong><p>${escapeHTML(detail)}</p></div>
-  `).join("") || `<p class="empty-state">尚未配置工作日日程。</p>`;
-  $("#week-grid").innerHTML = weekPlan.map(([day, title, detail]) => `
-    <article><span>${escapeHTML(day)}</span><strong>${escapeHTML(title)}</strong><p>${escapeHTML(detail)}</p></article>
-  `).join("") || `<p class="empty-state">尚未配置每周运动。</p>`;
-
+function renderProfile(profile) {
   const targets = profile?.targets || {};
   $("#target-sleep").textContent = targets.sleepHours == null ? "未设置目标" : `目标 ${hoursToText(targets.sleepHours)}`;
   $("#target-readiness").textContent = targets.readiness == null ? "未设置目标" : `${targets.readiness}+ 执行完整计划`;
   $("#target-sleep-score").textContent = targets.sleepScore == null ? "未设置目标" : `${targets.sleepScore}+ 执行完整计划`;
   $("#target-hrv").textContent = targets.hrv == null ? "使用个人趋势" : `个人目标 ${targets.hrv} ms`;
-
-  const cycle = profile?.cycle;
-  if (cycle?.typicalMinutes && Array.isArray(cycle.middleRangeMinutes)) {
-    $("#cycle-kicker").textContent = cycle.nights ? `${cycle.nights} 晚 Oura 分期` : "个人睡眠周期";
-    $("#cycle-title").textContent = `周期 ${cycle.typicalMinutes} 分钟`;
-    $("#cycle-copy").textContent = cycle.summary || "这是可穿戴设备估算，不用于按周期设置闹钟。";
-    $("#cycle-start").textContent = cycle.middleRangeMinutes[0];
-    $("#cycle-typical").textContent = `${cycle.typicalMinutes} 分钟`;
-    $("#cycle-end").textContent = cycle.middleRangeMinutes[1];
-  }
 }
 
 function renderStatus(data) {
@@ -349,7 +325,7 @@ function renderDashboard(data) {
   $("#data-through").textContent = `Oura 至 ${data.dataThrough}`;
   $("#today-date").textContent = localDateText(localISODate());
   $("#sync-time").textContent = `可用睡眠数据截至 ${data.dataThrough}`;
-  renderProfile(data.profile, data.sleepPlan.phaseIndex);
+  renderProfile(data.profile);
   renderStatus(data);
   renderDailyPlan(data);
   renderComparisons(data);
@@ -601,7 +577,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (button) deleteDailyItem(button.dataset.deleteItem);
   });
   const initialTab = location.hash.slice(1);
-  if (["today", "review", "schedule", "data"].includes(initialTab)) setTab(initialTab);
+  setTab(["today", "review", "data"].includes(initialTab) ? initialTab : "today");
   setupInstallPrompt();
   await Promise.all([fetchDashboard(), loadDailyItems(), fetchSyncStatus(), loadVoiceReview()]);
   checkReminderClock();

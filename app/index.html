@@ -28,7 +28,6 @@
       <nav class="tabbar" aria-label="主要视图">
         <button class="tab is-active" type="button" data-tab="today">今天</button>
         <button class="tab" type="button" data-tab="review">复盘</button>
-        <button class="tab" type="button" data-tab="schedule">日程</button>
         <button class="tab" type="button" data-tab="data">数据</button>
       </nav>
 
@@ -148,28 +147,6 @@
           </section>
         </section>
 
-        <section class="view" id="schedule-view" data-view="schedule">
-          <div class="page-heading"><div><p class="eyebrow">按时间执行</p><h1>你的具体日程</h1></div></div>
-          <section class="cycle-explainer" id="cycle-explainer">
-            <div><p class="section-kicker" id="cycle-kicker">个人睡眠周期</p><h2 id="cycle-title">尚未配置周期估算</h2><p id="cycle-copy">运行睡眠周期分析后，可把汇总值写入本地配置。</p></div>
-            <div class="range-visual" aria-label="个人睡眠周期常见范围">
-              <span class="range-line"></span><span class="range-start" id="cycle-start">--</span><strong id="cycle-typical">--</strong><span class="range-end" id="cycle-end">--</span>
-            </div>
-          </section>
-          <section aria-labelledby="transition-title">
-            <div class="section-heading"><div><p class="section-kicker">本地配置</p><h2 id="transition-title">入睡过渡</h2></div></div>
-            <div class="transition-grid" id="transition-grid"></div>
-          </section>
-          <section aria-labelledby="workday-title">
-            <div class="section-heading"><div><p class="section-kicker">本地配置</p><h2 id="workday-title">工作日</h2></div></div>
-            <div class="timeline" id="workday-timeline"></div>
-          </section>
-          <section aria-labelledby="training-title">
-            <div class="section-heading"><div><p class="section-kicker">TRAINING</p><h2 id="training-title">本周运动</h2></div></div>
-            <div class="week-grid" id="week-grid"></div>
-          </section>
-        </section>
-
         <section class="view" id="data-view" data-view="data">
           <div class="page-heading"><div><p class="eyebrow">本机保存</p><h1>数据与提醒</h1></div></div>
           <section class="data-actions">
@@ -212,6 +189,6 @@
       </main>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/app.js?v=13" defer></script>
+    <script src="/app.js?v=14" defer></script>
   </body>
 </html>

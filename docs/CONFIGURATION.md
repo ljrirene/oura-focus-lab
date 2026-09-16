@@ -30,9 +30,9 @@ cp config/profile.example.json config/user.json
 
 - `timezone`: an IANA timezone used by calendar events
 - `schedule.startDate`: the first day of the staged schedule
-- `schedule.phases`: wind-down, bed, lights-out, wake, and phase length
-- `schedule.workday`: the timeline shown in the Schedule view
-- `schedule.weekPlan`: the training plan shown in the Schedule view
+- `schedule.phases`: private sleep timing constraints used by local rules and AI planning
+- `schedule.workday`: private workday constraints used by local rules and AI planning
+- `schedule.weekPlan`: private training constraints used by local rules and AI planning
 - `targets`: sleep duration, Readiness, Sleep Score, and optional HRV reference
 - `dailyItems`: user-defined medication, supplement, or other check-offs
 - `sync`: automatic sync interval, recent lookback window, and selected endpoints

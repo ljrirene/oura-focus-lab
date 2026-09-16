@@ -1179,10 +1179,7 @@ def dashboard_payload(include_ai: bool = True) -> dict[str, Any]:
         },
         "trend": trend,
         "profile": {
-            "timezone": profile.get("timezone", "UTC"),
-            "schedule": profile.get("schedule", {}),
             "targets": targets,
-            "cycle": profile.get("cycle"),
         },
         "sleepPlan": tonight_sleep_plan(profile),
         "review": automatic_review(sleep_rows, profile),
