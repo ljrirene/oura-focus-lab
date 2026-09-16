@@ -7,6 +7,7 @@ const state = {
   voiceChunks: [],
   voiceStartedAt: null,
   voiceTimer: null,
+  aiPolling: false,
 };
 
 const metricLabels = {
@@ -217,6 +218,7 @@ function renderDailyPlan(data) {
   $("#ai-status").textContent = `AI：${ai.message || "状态未知"}`;
   $("#ai-plan-button").disabled = ai.status === "generating" || !ai.configured;
   $("#ai-plan-button").textContent = ai.status === "generating" ? "正在生成" : "重新生成今日计划";
+  if (ai.status === "generating") pollAIPlan();
 }
 
 function renderComparisons(data) {
@@ -441,9 +443,43 @@ async function requestAIPlan() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "无法生成计划");
     showToast(data.message || "AI 计划已开始生成");
-    window.setTimeout(() => fetchDashboard(), 2500);
+    pollAIPlan();
   } catch (error) {
     showToast(error.message);
+    button.disabled = false;
+    button.textContent = "重新生成今日计划";
+  }
+}
+
+async function pollAIPlan() {
+  if (state.aiPolling) return;
+  state.aiPolling = true;
+  const button = $("#ai-plan-button");
+  const deadline = Date.now() + 100000;
+  try {
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+      const response = await fetch("/api/ai-plan", { cache: "no-store" });
+      if (!response.ok) throw new Error("AI 状态读取失败");
+      const ai = await response.json();
+      $("#ai-status").textContent = `AI：${ai.message || "状态未知"}`;
+      if (ai.status === "generating") continue;
+      await fetchDashboard();
+      if (ai.status === "ready") showToast("今日计划已更新");
+      if (ai.status === "error") showToast(ai.message || "AI 计划生成失败");
+      return;
+    }
+    $("#ai-status").textContent = "AI：生成超时，可重新尝试";
+    button.disabled = false;
+    button.textContent = "重新生成今日计划";
+    showToast("生成超过 100 秒，按钮已恢复");
+  } catch (error) {
+    $("#ai-status").textContent = `AI：${error.message}`;
+    button.disabled = false;
+    button.textContent = "重新生成今日计划";
+    showToast(error.message);
+  } finally {
+    state.aiPolling = false;
   }
 }
 

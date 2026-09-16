@@ -144,6 +144,20 @@ class SyncTests(unittest.TestCase):
 
 
 class AIPlanTests(unittest.TestCase):
+    def test_timeout_status_has_a_retryable_message(self):
+        cached = {
+            "date": date.today().isoformat(),
+            "status": "error",
+            "message": "AI 计划失败：The read operation timed out",
+        }
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False), mock.patch.object(
+            oura_app, "read_json", return_value=cached
+        ):
+            status = oura_app.ai_plan_status()
+
+        self.assertEqual(status["status"], "error")
+        self.assertEqual(status["message"], "AI 计划生成超时，请重试")
+
     def test_ai_plan_cannot_move_configured_wake_time(self):
         base = {
             "label": "Stable",

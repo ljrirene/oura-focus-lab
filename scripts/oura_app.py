@@ -455,7 +455,8 @@ def ai_plan_status() -> dict[str, Any]:
         message = "今日计划已由 AI 生成"
     elif cached.get("status") == "error" and cached.get("date") == date.today().isoformat():
         status = "error"
-        message = str(cached.get("message") or "AI 计划生成失败")
+        cached_message = str(cached.get("message") or "AI 计划生成失败")
+        message = "AI 计划生成超时，请重试" if "timed out" in cached_message.lower() else cached_message
     else:
         status = "pending"
         message = "等待生成今日计划"
@@ -648,6 +649,8 @@ def generate_ai_plan() -> None:
         request_payload = {
             "model": os.environ.get("OPENAI_MODEL", "gpt-5-mini"),
             "store": False,
+            "max_output_tokens": 4000,
+            "reasoning": {"effort": "minimal"},
             "instructions": (
                 "You are a concise Chinese daily planning engine for a private sleep and cognition dashboard. "
                 "Build a specific plan for this date from the supplied wearable data and configured constraints. "
@@ -660,6 +663,7 @@ def generate_ai_plan() -> None:
             ),
             "input": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
             "text": {
+                "verbosity": "low",
                 "format": {
                     "type": "json_schema",
                     "name": "daily_plan",
@@ -691,6 +695,8 @@ def generate_ai_plan() -> None:
         )
     except HTTPError as error:
         write_json_atomic(AI_PLAN_PATH, {"date": date.today().isoformat(), "status": "error", "message": f"AI API 返回 {error.code}"})
+    except TimeoutError:
+        write_json_atomic(AI_PLAN_PATH, {"date": date.today().isoformat(), "status": "error", "message": "AI 计划生成超时，请重试"})
     except (URLError, OSError, ValueError, json.JSONDecodeError) as error:
         write_json_atomic(AI_PLAN_PATH, {"date": date.today().isoformat(), "status": "error", "message": f"AI 计划失败：{str(error)[:100]}"})
     finally:
